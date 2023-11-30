@@ -1,11 +1,16 @@
 from pathlib import Path
-from open_dataset import *
+from .open_dataset import *
 import json
 from pathlib import Path
 from PIL import Image
 import os
+import random
+import yaml
+from .checklist import DirChecklist
+import numpy as np
 
-with open("./organize.json") as f:
+
+with open(Path(os.path.realpath(__file__)).parent/"organize.json") as f:
     ALL_PATH_PAIR = json.load(f)
     
 class HangulRealImageDatasetOganizer:
@@ -88,8 +93,14 @@ class HangulRealImageDatasetOganizer:
 
     @staticmethod
     def clean_origin_dir(root):
-        (Path(root)/"030.야외 실제 촬영 한글 이미지").unlink()
-        (Path(root)/"야외 실제 촬영 한글 이미지").unlink()
+        dir_list = ["030.야외 실제 촬영 한글 이미지", "야외 실제 촬영 한글 이미지"]
+        
+        for dir in dir_list:
+            dir = Path(dir)
+            if dir.exists():
+                dir.unlink()
+
+
 
 class HangulRealImageDataset(OpenDataset):
     """
@@ -100,9 +111,18 @@ class HangulRealImageDataset(OpenDataset):
     """
     def __init__(self, args):
         self.args = args
-
-        super().__init__(args)
+        self.checked_dir_list = self.get_checked_dir_list()
         
+        print("*******Checked Dir List*******")
+        for dir in self.checked_dir_list:
+            print(dir)
+        print("******************************")
+        super().__init__(args)    
+
+    def get_checked_dir_list(self):
+        checked_dir_list = DirChecklist.get_checked_dir_list(self.args.checklist_path)
+        return [Path(self.args.root)/x for x in checked_dir_list]
+    
     def load_image(self, path):
         return Image.open(path)
     
@@ -111,18 +131,45 @@ class HangulRealImageDataset(OpenDataset):
             return json.load(f)
         
     def get_all_sample_list(self):
-        target_root = self.args.root
         img_ext = self.args.img_ext
         label_ext = self.args.label_ext
-        
         sample_list = []
-        
-        for img_path in sorted(Path(target_root).rglob(f"*.{img_ext}")):
-            label_path = img_path.parent/f"{img_path.stem}.{label_ext}"
-            label_path = Path(str(label_path).replace("VS", "VL"))
-            sample_list.append([img_path, label_path])
-        
+                
+        for checked_dir in self.checked_dir_list:
+            for img_path in sorted(Path(checked_dir).rglob(f"*.{img_ext}")):
+                label_path = img_path.parent/f"{img_path.stem}.{label_ext}"
+                label_path = Path(str(label_path).replace("source", "label"))
+                sample_list.append([img_path, label_path])
         return sample_list
+
+    def get_box_detection_dataset(self):
+        return HangulRealImage_BoxDetectionDataset(self)
+    
+class HangulRealImage_BoxDetectionDataset(BoxDetectionDataset):
+    # @override
+    def to_box_detextion_x(self, x):
+        return np.array(x)
+    
+    # @override
+    def to_box_detextion_y(self, y):
+        label = y
+        result = []
+        for annotation in label["annotations"]:
+            try:
+                
+                x, y, w, h = annotation["bbox"]
+                upper_left = [x, y]
+                upper_right = [x+w, y]
+                bottom_right = [x+w, y+h]
+                bottom_left = [x, y+h]
+            except:
+                continue
+            result.append({"bbox":[upper_left, upper_right, bottom_right, bottom_left], "label":annotation["text"]})
+        return result
+    
+
+            
+        
 
 class HangulRealImageDataset_to_PaddleOCR:
     def __init__(self, dataset):
@@ -131,22 +178,95 @@ class HangulRealImageDataset_to_PaddleOCR:
     def to_paddle_label(self, label):
         result = []
         for annotation in label["annotations"]:
-            x, y, w, h = annotation["bbox"]
-            upper_left = [x, y]
-            upper_right = [x+w, y]
-            bottom_right = [x+w, y+h]
-            bottom_left = [x, y+h]
+            try:
+                x, y, w, h = annotation["bbox"]
+                upper_left = [x, y]
+                upper_right = [x+w, y]
+                bottom_right = [x+w, y+h]
+                bottom_left = [x, y+h]
         
-            result.append({"transcription":annotation["text"], "points":[upper_left, upper_right, bottom_right, bottom_left]})
+                result.append({"transcription":annotation["text"], "points":[upper_left, upper_right, bottom_right, bottom_left]})
+            except:
+                print(annotation)
+                continue
         return json.dumps(result)
 
-    def make_paddle_label(self, paddle_orc_dataset_root):  
+    def make_paddle_label(self, paddle_orc_dataset_root, seed = 100):  
         label_list = []
         for i in range(len(self.dataset)):
             label = self.dataset.get_label(i)
             relative_path = self.dataset.get_image_path(i).relative_to(paddle_orc_dataset_root)
+            if "간판" not in str(relative_path):
+                continue
             label = self.to_paddle_label(label)
             paddle_label = f"{relative_path}\t{label}"
             label_list.append(paddle_label)
+            
         
-        return "\n".join(label_list)
+        random.seed(seed)
+        random.shuffle(label_list)
+        train_num = int(len(label_list)*0.8)
+        test_num = int(len(label_list)*0.9)
+        
+        train_label_list = label_list[:train_num]
+        val_label_list = label_list[train_num:test_num]
+        test_label_list = label_list[test_num:]
+        
+        return "\n".join(train_label_list), "\n".join(val_label_list), "\n".join(test_label_list)
+
+class AiHubShell:
+    def __init__(self, id=None, pw=None):
+        self._id = id if id else os.environ["AIHUB_ID"]
+        self._pw = pw if pw else os.environ["AIHUB_PW"]
+        
+        os.system("curl -o 'aihubshell' https://api.aihub.or.kr/api/aihubshell.do")
+        os.system("chmod +x aihubshell")
+        os.system("cp aihubshell /usr/bin")
+        
+    @property
+    def id(self):
+        if self._id == None:
+            self._id = input("Enter aihub id:")
+        return self._id
+    
+    @property
+    def pw(self):
+        if self._pw == None:
+            self._pw = input("Enter aihub pw:")
+        return self._pw
+    
+    def download(self, dataset_key, save_dir):
+        current_path = os.getcwd()
+        save_dir = Path(save_dir)
+        
+        if save_dir.exists():
+            print(f"The save dir {save_dir} exist. The dataset might have been downloaded already. To continue, you can just delete it and do again")
+            # return 
+        
+        save_dir.mkdir(parents=True, exist_ok=True)
+        os.chdir(save_dir)
+        
+        # 다운로드
+        os.system(f"aihubshell -mode d -aihubid {self.id} -aihubpw '{self.pw}' -datasetkey {dataset_key}")
+        os.chdir(current_path) # 작업 디렉터리 복구
+
+
+def show_data_example_function():
+    from dataset.aihub.hangul_real_image_dataset.config_loader import YamlConfigLoader
+    from dataset.aihub.hangul_real_image_dataset.aihub import HangulRealImageDatasetOganizer, HangulRealImageDataset, HangulRealImageDataset_to_PaddleOCR
+
+    DEFALT_CONFIG_PATH = "/home/code/dataset/aihub/hangul_real_image_dataset/config.yml"
+    config = YamlConfigLoader.load_config(DEFALT_CONFIG_PATH)  
+    dataset = HangulRealImageDataset(config)
+    box_det_dataset = dataset.get_box_detection_dataset()
+
+    sample_idx = 10
+    x, y = box_det_dataset[sample_idx]
+    box_det_dataset.show_xy(x, y) # 레이블링된 이미지 출력
+    box_det_dataset.show_y(y) # 레이블 출력
+
+# AIHUB_ID = "hoonisone@gmail.com"
+# AIHUB_PW = "is6E24nYiWPscH#"
+# DATASET_KEY = 105
+# SAVE_DIR = "/home/dataset/AIHUB/korean_real_outdoor_image"
+# AiHubShell(AIHUB_ID, AIHUB_PW).download(DATASET_KEY, SAVE_DIR)

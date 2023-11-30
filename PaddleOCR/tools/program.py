@@ -80,6 +80,7 @@ def load_config(file_path):
     Returns: global config
     """
     _, ext = os.path.splitext(file_path)
+
     assert ext in ['.yml', '.yaml'], "only support yaml files for now"
     config = yaml.load(open(file_path, 'rb'), Loader=yaml.Loader)
     return config
@@ -297,6 +298,7 @@ def train(config,
                 scaled_avg_loss.backward()
                 scaler.minimize(optimizer, scaled_avg_loss)
             else:
+                
                 if model_type == 'table' or extra_input:
                     preds = model(images, data=batch[1:])
                 elif model_type in ["kie", 'sr']:
@@ -304,8 +306,56 @@ def train(config,
                 elif algorithm in ['CAN']:
                     preds = model(batch[:3])
                 else:
-                    preds = model(images)
+                    preds = model(images)             # 현재 DB 알고리즘 사용 중    
+                # len(batch)    : 5
+                # type(batch)   : list
+                # type(batch[0]): <class 'paddle.Tensor'>
+                # type(batch[0]): <class 'paddle.Tensor'>
+                # batch[0].shape: [2, 3, 640, 640] 2는 배치 사이즈
+                # batch[1].shape: [2, 640, 640] (dtype = paddle.float32)
+                # batch[2].shape: [2, 640, 640] (dtype = paddle.float32)
+                # batch[3].shape: [2, 640, 640] (dtype = paddle.float32)
+                # batch[4].shape: [2, 640, 640] (dtype = paddle.float32)
+                 
+                # len(preds)  : 1
+                # type(preds) : dict
+                # preds.keys(): dict_keys(['maps'])
+                # type(preds['maps']): <class 'paddle.Tensor'>
+                # preds['maps'].shape: [2, 3, 640, 640] 맨 앞에 2은 배치 사이즈
+                
+                # 코드를 보며 알게된 사실은
+                # batch[1:]에 4개의 텐서는 각각
+                # label_threshold_map, label_threshold_mask, label_shrink_map, label_shrink_mask 이다.
+                """
+                    코드를 분석한 결과 
+                    다양한 Detection 알고리즘이 있으며 이를 모두 커버하기 위해
+                    Dataloader가 각 알고리즘에서 사용되는 모든 형태의 데이터를 반환하고
+                    코드는 설정된 알고리즘에 따라 필요한 형태의 데이터만 추출하여 사용하고 있음
+                    다양한 기능을 지원하는 경우에는 이처럼 데이터를 요구되는 다양한 형태로 일단 제공하고
+                    뒤에서 옵션에 따라 알아서 선택해서 사용하게 하는 이 방식이 매우 좋은 것 같음
+                """
+                # with open("/home/label_threshold_map.txt", "w") as f:
+                #     f.write(str(batch[1].numpy()))
+                # with open("/home/label_threshold_mask .txt", "w") as f:
+                #     f.write(str(batch[2].numpy()))
+                # with open("/home/label_shrink_map.txt", "w") as f:
+                #     f.write(str(batch[3].numpy()))
+                # with open() as f:
+                #     f.write(str())
+                
+                    
+                # from PIL import Image   
+                # print((batch[1][0].numpy()*255).astype(np.uint8).shape)             
+                # Image.fromarray((batch[1][0].numpy()*255).astype(np.uint8)).save("/home/label_threshold_map.png")
+                # Image.fromarray((batch[2][0].numpy()*255).astype(np.uint8)).save("/home/label_threshold_mask.png")
+                # Image.fromarray((batch[3][0].numpy()*255).astype(np.uint8)).save("/home/label_shrink_map.png")
+                # Image.fromarray((batch[4][0].numpy()*255).astype(np.uint8)).save("/home/label_shrink_mask.png")
+                
                 loss = loss_class(preds, batch)
+                # loss_class의 인자가 preds와 label인데
+                # label위치에 batch를 주는 이유는
+                # batch 안에 label 정보가 포함되어 있다는 건가?
+                
                 avg_loss = loss['loss']
                 avg_loss.backward()
                 optimizer.step()

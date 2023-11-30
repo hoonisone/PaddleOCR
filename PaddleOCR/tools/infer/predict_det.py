@@ -63,7 +63,7 @@ class TextDetector(object):
         ### 여기서 self.det_algorithm = DB
         ##########################################################################################################
         # 탐지 알고리즘에 관한 설정
-        if self.det_algorithm == "DB":
+        if self.det_algorithm == "DB": # True                                                   ### 알고리즘에 따라 postprocess의 설정 값이 달라짐
             postprocess_params['name'] = 'DBPostProcess'
             postprocess_params["thresh"] = args.det_db_thresh
             postprocess_params["box_thresh"] = args.det_db_box_thresh
@@ -149,10 +149,10 @@ class TextDetector(object):
         # 결과적으로 핵심 추론 모델을 생성하는 것은 하나의 코드에서 관리를 하네?
         self.predictor, self.input_tensor, self.output_tensors, self.config = utility.create_predictor(
             args, 'det', logger)
-        print(f"###self.predictor = {self.predictor}")
-        print(F"### input tensor = {self.input_tensor}")
-        print(F"### output_tensor = {self.output_tensors}")
-        print(F"### config = {self.config}")
+        # print(f"###self.predictor = {self.predictor}")
+        # print(F"### input tensor = {self.input_tensor}")
+        # print(F"### output_tensor = {self.output_tensors}")
+        # print(F"### config = {self.config}")
         # self.input_tensor = type: PaddleInferTensor
         # self.output_tensor = type: [PaddleInferTensor]
         # self.config = type: AnalysisConfig
@@ -234,6 +234,7 @@ class TextDetector(object):
         return dt_boxes
 
     def __call__(self, img):
+        
         ori_im = img.copy()
         data = {'image': img}
 
@@ -243,21 +244,39 @@ class TextDetector(object):
             self.autolog.times.start()
 
         data = transform(data, self.preprocess_op)
+        # type(data): list
+        # len(data): 2
+        # type(data[0]): <class 'numpy.ndarray'>
+        # data[0].shape (3, 640, 640)
+        # data => image
+        
+        # type(data[1]): <class 'numpy.ndarray'>
+        # data[1].shape:(4, ) 이건 뭘까?..
+        # data[1]: [640, 640, 1, 1] ... 1, 1은 뭘 의미하는 걸까?
+        # data[1] => shape list
+        # shape list = [width, height, ratio_x, ratio_y] => post_process 과정에 필요 (원본 사이즈로 복구 하기 위함)
+        # 여기서 width, height은 원본이 아닌 모델에 입력되기 위해 resised된 크기
+        
         img, shape_list = data
-        if img is None:
+        
+        if img is None:        # 예외 처리
             return None, 0
-        img = np.expand_dims(img, axis=0)
-        shape_list = np.expand_dims(shape_list, axis=0)
+        
+        img = np.expand_dims(img, axis=0) # 모델이 배치 단위로 동작하기 때문 [1, 3, w, h] 형태로 변환
+        shape_list = np.expand_dims(shape_list, axis=0) # 얘는 왜?
         img = img.copy()
 
-        if self.args.benchmark:
+        if self.args.benchmark: # False
             self.autolog.times.stamp()
-        if self.use_onnx:
+            
+        if self.use_onnx: # False
             input_dict = {}
             input_dict[self.input_tensor.name] = img
             outputs = self.predictor.run(self.output_tensors, input_dict)
-        else:
+        else: # True
             self.input_tensor.copy_from_cpu(img)
+            # type(self.input_tensor): <class 'paddle.fluid.libpaddle.PaddleInferTensor'>
+            # self.input_tensor: <paddle.fluid.libpaddle.PaddleInferTensor object at 0x7f4fe80e3770>
             self.predictor.run()
             outputs = []
             for output_tensor in self.output_tensors:
@@ -275,7 +294,7 @@ class TextDetector(object):
             preds['f_score'] = outputs[1]
             preds['f_tco'] = outputs[2]
             preds['f_tvo'] = outputs[3]
-        elif self.det_algorithm in ['DB', 'PSE', 'DB++']:
+        elif self.det_algorithm in ['DB', 'PSE', 'DB++']: # True
             preds['maps'] = outputs[0]
         elif self.det_algorithm == 'FCE':
             for i, output in enumerate(outputs):
@@ -285,8 +304,23 @@ class TextDetector(object):
             preds['score'] = outputs[1]
         else:
             raise NotImplementedError
+        
+        # type(preds): <class 'dict'>
+        # preds.keys()  dict_keys(['maps'])
+        # type(preds['maps']): <class 'numpy.ndarray'> # paddle.Tensor가 아니네? numpy로 바꾸어서 반환해주나보다.
+        # preds['maps'].shape: (1, 1, 640, 640)
 
         post_result = self.postprocess_op(preds, shape_list)
+        # type(post_result): <class 'list'>
+        # len(post_result): 1         @ batch size 가 1이니까 1개가 리스트로 반환 된 듯
+        # type(post_result[0]) <class 'dict'> 
+        
+        # post_result[0].keys():
+        # post_result[0]['point']: dict_keys(['points'])  @ 큰 프로젝트에서는 결과값이 다양하게 사용될 수 있으니 일단 dict로 key와 함께 반환하는 경우가 많네
+        print(f"post_result[0].keys() = {post_result[0].keys()}")
+        print(f"post_result[0]['points'] = {post_result[0]['points']}")
+
+        
         dt_boxes = post_result[0]['points']
 
         if self.args.det_box_type == 'poly':
@@ -297,8 +331,12 @@ class TextDetector(object):
         if self.args.benchmark:
             self.autolog.times.end(stamp=True)
         et = time.time()
+        
+        
         return dt_boxes, et - st
-
+        # dt_boxes = [box1, box2, ...]
+        # box = [[x1, y1], [x2, y2], [x3, y3], [x4, y4]]
+        
 
 if __name__ == "__main__":
     args = utility.parse_args()

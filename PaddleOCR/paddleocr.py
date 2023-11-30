@@ -580,7 +580,7 @@ class PaddleOCR(predict_system.TextSystem):
         """
         params = parse_args(mMain=False)
         params.__dict__.update(**kwargs)
-        print(f"### kwargs = {kwargs}")
+        # print(f"### kwargs = {kwargs}")
         assert params.ocr_version in SUPPORT_OCR_MODEL_VERSION, "ocr_version must in {}, but get {}".format(
             SUPPORT_OCR_MODEL_VERSION, params.ocr_version)
         params.use_gpu = check_gpu(params.use_gpu)
@@ -589,8 +589,8 @@ class PaddleOCR(predict_system.TextSystem):
             logger.setLevel(logging.INFO)
         self.use_angle_cls = params.use_angle_cls  # cls: classifier
         lang, det_lang = parse_lang(params.lang)
-        print(f"lang = {lang}")
-        print(f"det_lang = {det_lang}")
+        # print(f"lang = {lang}")
+        # print(f"det_lang = {det_lang}")
 
         # init model dir
         
@@ -704,10 +704,13 @@ class PaddleOCR(predict_system.TextSystem):
                 _image = binarize_img(_image)
             return _image
 
-        if det and rec:
+        if det and rec: # 여기 실행됨
+            
             ocr_res = []
             for idx, img in enumerate(imgs):
-                img = preprocess_image(img)
+                img = preprocess_image(img) # 여기서 resize가 일어남
+                # type(img): <class 'numpy.ndarray'>
+                # img.shape: (640, 640, 3)
                 
                 dt_boxes, rec_res, _ = self.__call__(img, cls)
                 if not dt_boxes and not rec_res:
@@ -859,8 +862,10 @@ def main(image_dir):
                     
                     if res is not None:
                         for line in res:
+                            pass
+                            # logger.info(line)
 
-                            logger.info(line)
+            
     ################## MH MODIFICATION START
             results.append(result)
     ################## MH MODIFICATION END
@@ -931,4 +936,4 @@ def main(image_dir):
     ################## MH MODIFICATION END
     
 if __name__ == "__main__":
-    main("/home/dataset/test")
+    main("/home/dataset/samples")

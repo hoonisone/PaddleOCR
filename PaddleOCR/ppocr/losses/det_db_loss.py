@@ -32,6 +32,8 @@ class DBLoss(nn.Layer):
     args:
         param (dict): the super paramter for DB Loss
     """
+    
+    # 현재 det_mv3_db.yml config를 사용하여 학습을 하는 과정에서 선택된 Loss이다.
 
     def __init__(self,
                  balance_loss=True,
@@ -52,9 +54,14 @@ class DBLoss(nn.Layer):
             negative_ratio=ohem_ratio)
 
     def forward(self, predicts, labels):
-        predict_maps = predicts['maps']
-        label_threshold_map, label_threshold_mask, label_shrink_map, label_shrink_mask = labels[
-            1:]
+        # predicts: 이건...
+        # labels: 이건 아직 확인을 안했네..
+    
+        
+        predict_maps = predicts['maps'] # 일단 predicts 안에는 maps 밖에 없음
+        
+        label_threshold_map, label_threshold_mask, label_shrink_map, label_shrink_mask = labels[1:]
+        # shrink = 수축
         shrink_maps = predict_maps[:, 0, :, :]
         threshold_maps = predict_maps[:, 1, :, :]
         binary_maps = predict_maps[:, 2, :, :]
@@ -65,6 +72,7 @@ class DBLoss(nn.Layer):
                                            label_threshold_mask)
         loss_binary_maps = self.dice_loss(binary_maps, label_shrink_map,
                                           label_shrink_mask)
+        
         loss_shrink_maps = self.alpha * loss_shrink_maps
         loss_threshold_maps = self.beta * loss_threshold_maps
         # CBN loss

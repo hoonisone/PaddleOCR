@@ -8,11 +8,12 @@ SUPPORTED:
   label_ext:
     - json
     - txt
-    
-root: /home/dataset/aihub
+  
+root: /home/dataset/AIHUB/korean_image
+checklist_path: "/home/code/dataset/aihub/hangul_real_image_dataset/checklist.yml"
 img_ext: jpg
 label_ext: json
 
 Task:
   PaddleOCR:
-    dataset_root: /home/dataset/aihub/hangul_real_image_dataset
+    dataset_root: /home/dataset

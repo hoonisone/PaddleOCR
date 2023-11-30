@@ -110,8 +110,14 @@ class DBPostProcess(object):
         bitmap = _bitmap
         height, width = bitmap.shape
 
+        # width: 640
+        # height: 640
+
         outs = cv2.findContours((bitmap * 255).astype(np.uint8), cv2.RETR_LIST,
                                 cv2.CHAIN_APPROX_SIMPLE)
+        
+        #################### 여기 까지 모델 후처리 과정에서 bit map을 bbox로 바꾸는 과정을 보고 있음
+        
         if len(outs) == 3:
             img, contours, _ = outs[0], outs[1], outs[2]
         elif len(outs) == 2:
@@ -233,12 +239,17 @@ class DBPostProcess(object):
                     self.dilation_kernel)
             else:
                 mask = segmentation[batch_index]
-            if self.box_type == 'poly':
-                boxes, scores = self.polygons_from_bitmap(pred[batch_index],
+            # self.box_type: quad @ 아마도 맨 처음 arg_parser에서 결정한 듯.. config 파일에는 안 보임
+            if self.box_type == 'poly': # False
+
+                boxes, scores = self.polygons_from_bitmap(pred[batch_index],                                            # 이녀석이다!!!!
                                                           mask, src_w, src_h)
-            elif self.box_type == 'quad':
+            elif self.box_type == 'quad': # True
                 boxes, scores = self.boxes_from_bitmap(pred[batch_index], mask,
                                                        src_w, src_h)
+                # src_w: 600 @ 모델에 입력된 이미지 크기
+                # src_h: 600 @ 모델에 입력된 이미지 크기
+
             else:
                 raise ValueError("box_type can only be one of ['quad', 'poly']")
 

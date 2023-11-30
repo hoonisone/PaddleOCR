@@ -83,4 +83,13 @@ def build_loss(config):
     assert module_name in support_dict, Exception('loss only support {}'.format(
         support_dict))
     module_class = eval(module_name)(**config)
+    # eval은 파이썬 내장 함수이다.
+    # 인자로 문자열을 주면 그 문자열을 코드로 인식하여 수행을 해준다.
+    # eval("클래스 이름")() 의 형태로 문자열로부터 클래스를 생성할 수 있다.
+    # hydra도 이런식으로 동작하는 것일수도.. ㅎㅎ (내가 구현한다면 이렇게 할 듯)
+    # **config 는 config가 dirtionary 형태이며 이를 key=value 형식으로 펼쳐서 넣겠다는 뜻
+    # 이때 config에는 eval(module_name)의 생성자에 정의된 인자만 포함하고 있어야 한다.
+    # 또는 그 생성자의 인자로 **args 형태의 인자가 있어야 한다.
+    # 그래야 해당되지 않는 인자들을 args에 담아내며 오류가 발생하지 않는다.
+     
     return module_class

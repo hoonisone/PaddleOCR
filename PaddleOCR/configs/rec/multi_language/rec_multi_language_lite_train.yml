@@ -1,10 +1,10 @@
 Global:
   use_gpu: True
-  epoch_num: 500
+  epoch_num: 100
   log_smooth_window: 20
-  print_batch_step: 10
-  save_model_dir: ./output/rec_multi_language_lite
-  save_epoch_step: 3
+  print_batch_step: 1
+  save_model_dir: /home/output/rec_multi_language_lite
+  save_epoch_step: 1
   # evaluation is run every 5000 iterations after the 4000th iteration
   eval_batch_step: [0, 2000]
   # if pretrained_model is saved in static mode, load_static_weights must set to True
@@ -64,8 +64,9 @@ Metric:
 Train:
   dataset:
     name: SimpleDataSet
-    data_dir: train_data/
-    label_file_list: ["./train_data/train_list.txt"]
+    data_dir: /home/dataset
+    label_file_list:
+      - /home/dataset/train_label.txt
     transforms:
       - DecodeImage: # load image
           img_mode: BGR
@@ -78,15 +79,16 @@ Train:
           keep_keys: ['image', 'label', 'length'] # dataloader will return list in this order
   loader:
     shuffle: True
-    batch_size_per_card: 256
+    batch_size_per_card: 2
     drop_last: True
-    num_workers: 8
+    num_workers: 4
 
 Eval:
   dataset:
     name: SimpleDataSet
-    data_dir: train_data/
-    label_file_list: ["./train_data/val_list.txt"]
+    data_dir: /home/dataset
+    label_file_list:
+      - /home/dataset/train_label.txt
     transforms:
       - DecodeImage: # load image
           img_mode: BGR
@@ -100,4 +102,4 @@ Eval:
     shuffle: False
     drop_last: False
     batch_size_per_card: 256
-    num_workers: 8
+    num_workers: 4

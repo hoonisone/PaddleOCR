@@ -99,12 +99,16 @@ def build_dataloader(config, mode, device, logger, seed=None):
         'KieDataset',
     ]
     module_name = config[mode]['dataset']['name']
-    assert module_name in support_dict, Exception(
+    assert module_name in support_dict, Exception(      # 데이터 셋 이름 예외 체크
         'DataSet only support {}'.format(support_dict))
     assert mode in ['Train', 'Eval', 'Test'
-                    ], "Mode should be Train, Eval or Test."
-
+                    ], "Mode should be Train, Eval or Test." # 모드 이름 예외 체크
+    # eval(module_name): "SimpleDataSet"
+    # type(eval(module_name)): <class 'str'>
     dataset = eval(module_name)(config, mode, logger, seed)
+    # eval(module_name): <class 'ppocr.data.simple_dataset.SimpleDataSet'>
+    # type(eval(module_name)): <class 'type'>
+    
     loader_config = config[mode]['loader']
     batch_size = loader_config['batch_size_per_card']
     drop_last = loader_config['drop_last']

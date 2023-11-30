@@ -21,7 +21,7 @@ import copy
 
 __all__ = ['build_post_process']
 
-from .db_postprocess import DBPostProcess, DistillationDBPostProcess
+from .db_postprocess import DBPostProcess, DistillationDBPostProcess # @ 하나의 알고리즘에도 둘 이상의 프로세서 방식이 있구나
 from .east_postprocess import EASTPostProcess
 from .sast_postprocess import SASTPostProcess
 from .fce_postprocess import FCEPostProcess
@@ -55,8 +55,11 @@ def build_post_process(config, global_config=None):
         'RFLLabelDecode', 'DRRGPostprocess', 'CANLabelDecode',
         'SATRNLabelDecode'
     ]
+    # pre, post processing의 경우 설정에 민감하게 바뀐다.
+    # 알고리즘이 다른 경우 입력 출력 형태가 다를 수 있어 pre, post에서 이를 맞춰주어야 한다.
+    # 위에 보면 알고리즘 마다 각각 process들이 있는 것을 알 수 있다.
 
-    if config['name'] == 'PSEPostProcess':
+    if config['name'] == 'PSEPostProcess': # False
         from .pse_postprocess import PSEPostProcess
         support_dict.append('PSEPostProcess')
 
@@ -68,5 +71,5 @@ def build_post_process(config, global_config=None):
         config.update(global_config)
     assert module_name in support_dict, Exception(
         'post process only support {}'.format(support_dict))
-    module_class = eval(module_name)(**config)
+    module_class = eval(module_name)(**config) # 결국은 eval로 객체를 만들어내고 있네, 그럼 사실 config에 모듈 별로 name만 봐도 어떤걸 쓸 건지 알 수 있겠다.
     return module_class

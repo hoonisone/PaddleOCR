@@ -10,7 +10,7 @@ from pathlib import Path
 # fontpath = "fonts/gulim.ttc"
 fontpath = "usr/share/fonts/nanum/NanumGothic.ttf"
 # fontpath = "usr/share/fonts/truetype/dejavu/DejaBuSansMono.ttf"
-ImageFont.truetype(fontpath, 20)
+# ImageFont.truetype(fontpath, 20)
 
 def change_box_representation(left_top, right_top, right_bottom, left_bottom):
     res = [left_top[0], left_top[1], right_top[0], left_bottom[1]]
@@ -61,7 +61,7 @@ def draw_multiple_labels(img, boxes, labels, font_size = 13):
 
 
 def draw_multiple_boxes(img, boxes):
-
+    boxes = [[x, y, x+w, x+h]for x, y, w, h in boxes]
     return bbv.draw_multiple_rectangles(img, boxes, thickness=2, bbox_color=(0,0,0))
 
 def get_image_file_name_list(image_dir):

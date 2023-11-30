@@ -75,7 +75,11 @@ class TextSystem(object):
         start = time.time()
         ori_im = img.copy()
         dt_boxes, elapse = self.text_detector(img)
+        # type(dt_boxes):<class 'numpy.ndarray'>
+        # dt_boxes.shape: [box_num, 4, 2]
+        # type(elapse): float
         time_dict['det'] = elapse
+        # elapse: 경과한
 
         if dt_boxes is None:
             logger.debug("no dt_boxes found, elapsed : {}".format(elapse))

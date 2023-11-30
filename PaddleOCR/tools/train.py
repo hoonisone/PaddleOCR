@@ -189,8 +189,11 @@ def main(config, device, logger, vdl_writer):
         scaler = None
 
     # load pretrain model
+    
     pre_best_model_dict = load_model(config, model, optimizer,
                                      config['Architecture']["model_type"])
+    # print(model)
+    # return
 
     if config['Global']['distributed']:
         model = paddle.DataParallel(model)
@@ -222,6 +225,12 @@ def test_reader(config, device, logger):
 
 if __name__ == '__main__':
     config, device, logger, vdl_writer = program.preprocess(is_train=True)
+    # print(config)
+    # print(device)
+    # print(type(device))
+    # print(logger)
+    # print(vdl_writer)
+    # exit(-1)
     seed = config['Global']['seed'] if 'seed' in config['Global'] else 1024
     set_seed(seed)
     main(config, device, logger, vdl_writer)

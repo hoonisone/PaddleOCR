@@ -1,21 +1,26 @@
-Global:
-  use_gpu: true
+# det_mv3_db 라는 모델을 사용할 때 Train, Val, Test, Infer 등에 모든 설정을 담음
+Global:   
+  use_gpu: true                                                                            ## 수정 대상
   use_xpu: false
   use_mlu: false
-  epoch_num: 100
+  epoch_num: 50
   log_smooth_window: 20
-  print_batch_step: 24
-  save_model_dir: ./output/db_mv3/
-  save_epoch_step: 10
+  print_batch_step: 1
+  save_model_dir: /home/output/test/ # 모델 파라미터와 로깅 정보 들이 저장될 경로              ## 수정 대상
+  save_epoch_step: 1                                                                       ## 수정 대상
   # evaluation is run every 2000 iterations
-  eval_batch_step: [0, 2000]
+  eval_batch_step: [0, 2000]                                                               ## 수정 대상
   cal_metric_during_train: False
-  pretrained_model: ./pretrain_models/MobileNetV3_large_x0_5_pretrained
-  checkpoints:
-  save_inference_dir:
-  use_visualdl: False
-  infer_img: doc/imgs_en/img_10.jpg
-  save_res_path: ./output/det_db/predicts_db.txt
+  # pretrained_model: /home/model/pretrained/MobileNetV3_large_x0_5_pretrained
+  pretrained_model: /home/output/db_mv3/latest # pretrained_model은 학습 설정은 처음부터 시작할 건데 그냥 미리 학습된 모델을 로드해서 사용하는 것 같고
+  checkpoints: #/home/output/db_mv3/latest # checkpoints는 기존의 학습 정보 (epock, step, optimizer 등)를 함께 로드하여 이어서 시작하는 것 같다.
+  
+  ##### infer_det.py 에서 사용하는 영역
+  infer_img: /home/dataset/samples # 추론할 이미지 또는 이미지 폴더 경로
+  save_inference_dir: /home/output/det_mv3_db/predict/visualize # 시각화 결과가 저장될 위치
+  save_res_path: /home/output/det_mv3_db/predict/predicts_db.txt # 추론 결과가 저장될 파일 (하나에 파일에 다 해주는 듯)
+  use_visualdl: True # 추론 결과에 대해 레이블을 시각화 한 이미지를 따로 저장할 것인가?
+
 
 Architecture:
   model_type: det
@@ -64,9 +69,9 @@ Metric:
 Train:
   dataset:
     name: SimpleDataSet
-    data_dir: /home/dataset/AIHUB/temp
+    data_dir: /home/dataset
     label_file_list:
-      - /home/dataset/AIHUB/temp/train_label.txt
+      - /home/dataset/test_label2.txt
     ratio_list: [1.0]
     transforms:
       - DecodeImage: # load image
@@ -100,17 +105,17 @@ Train:
   loader:
     shuffle: True
     drop_last: False
-    batch_size_per_card: 16
-    num_workers: 8
+    batch_size_per_card: 128                                                              ## 수정 대상
+    num_workers: 8                                                                      ## 수정 대상
     use_shared_memory: True
 
 Eval:
   dataset:
     name: SimpleDataSet
-    data_dir: /home/dataset/AIHUB/temp # /home/dataset/det
+    data_dir: /home/dataset
     label_file_list:
       # - /home/dataset/det/test_icdar2015_label.txt
-      - /home/dataset/AIHUB/temp/val_label.txt
+      - /home/dataset/val_label.txt
     transforms:
       - DecodeImage: # load image
           img_mode: BGR
@@ -130,5 +135,5 @@ Eval:
     shuffle: False
     drop_last: False
     batch_size_per_card: 1 # must be 1
-    num_workers: 8
+    num_workers: 8                                                               ## 수정 대상
     use_shared_memory: True

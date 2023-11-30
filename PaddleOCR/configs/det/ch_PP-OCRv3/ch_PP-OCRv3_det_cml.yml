@@ -1,7 +1,7 @@
 Global:
   debug: false
   use_gpu: true
-  epoch_num: 10
+  epoch_num: 500
   log_smooth_window: 20
   print_batch_step: 10
   save_model_dir: /home/model/output/ch_PP-OCR_v3_det/2
@@ -10,7 +10,8 @@ Global:
   - 0
   - 400
   cal_metric_during_train: false
-  pretrained_model: null #/home/model/pretrained/Multilingual_PP-OCRv3_det_slim_distill_train/best_accuracy
+  # pretrained_model: /home/model/pretrained/Multilingual_PP-OCRv3_det_slim_distill_train/best_accuracy
+  pretrained_model: /home/model/pretrained/MobileNetV3_large_x0_5_pretrained
   checkpoints: null
   save_inference_dir: null
   use_visualdl: false
@@ -26,7 +27,7 @@ Architecture:
   model_type: det
   Models:
     Student:
-      pretrained:
+      pretrained: null
       model_type: det
       algorithm: DB
       Transform: null
@@ -43,7 +44,7 @@ Architecture:
         name: DBHead
         k: 50
     Student2:
-      pretrained:
+      pretrained: null
       model_type: det
       algorithm: DB
       Transform: null
@@ -197,7 +198,7 @@ Train:
     shuffle: true
     drop_last: false
     batch_size_per_card: 8
-    num_workers: 8
+    num_workers: 4
 
 Eval:
   dataset:
