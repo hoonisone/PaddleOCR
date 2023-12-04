@@ -4,6 +4,8 @@ import dotdict
 class ConfigLoader:
     @staticmethod
     def check_all(args):
+        if "SUPPORTED" not in args:
+            return
         ConfigLoader.check(args, args.SUPPORTED)
     
     @staticmethod

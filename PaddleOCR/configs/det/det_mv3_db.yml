@@ -135,5 +135,9 @@ Eval:
     shuffle: False
     drop_last: False
     batch_size_per_card: 1 # must be 1
-    num_workers: 8                                                               ## 수정 대상
+    num_workers: 2                                                               ## 수정 대상
     use_shared_memory: True
+
+Infer:
+  data_dir: None
+  label_file_list: None

@@ -19,6 +19,7 @@ from __future__ import print_function
 import os
 import sys
 
+
 __dir__ = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, __dir__)
 sys.path.insert(0, os.path.abspath(os.path.join(__dir__, '..')))
@@ -136,10 +137,32 @@ def main():
     metric = program.eval(model, valid_dataloader, post_process_class,
                           eval_class, model_type, extra_input, scaler,
                           amp_level, amp_custom_black_list)
+    
     logger.info('metric eval ***************')
     for k, v in metric.items():
         logger.info('{}:{}'.format(k, v))
+    
 
+    ###################################################### MH Modification Start
+    import pandas as pd
+    from pathlib import Path
+
+    result_dict = metric
+    result_dict["model"] = config["Global"]["pretrained_model"]
+    path = Path(config["Global"]["test_save_path"])/"results.csv"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    
+    for key, value in result_dict.items():
+        result_dict[key] = [value]
+
+    df = pd.DataFrame(result_dict)
+
+    if path.exists():
+        origin_df = pd.read_csv(path, index_col=0)
+        df = pd.concat([origin_df, df])
+        
+    df.to_csv(path)
+    ###################################################### MH Modification End
 
 if __name__ == '__main__':
     config, device, logger, vdl_writer = program.preprocess()

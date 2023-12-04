@@ -20,7 +20,9 @@ import numpy as np
 
 import os
 import sys
-
+#################################################### MH Modification
+from pathlib import Path
+####################################################
 __dir__ = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(__dir__)
 sys.path.insert(0, os.path.abspath(os.path.join(__dir__, '..')))
@@ -81,7 +83,17 @@ def main():
 
     model.eval()
     with open(save_res_path, "wb") as fout:
-        for file in get_image_file_list(config['Global']['infer_img']):
+        #################################################### MH Modification Start
+        infer_paths = []
+        dataset_dir = Path(config['Infer']["data_dir"])
+        for infor_file in config['Infer']['infer_file_list']:    
+            with open(infor_file, "r") as f:
+                paths = [str(dataset_dir/line.strip("\n")) for line in f.readlines()]                
+            infer_paths += paths
+        for file in infer_paths:
+        # infer_img = config['Global']['infer_img']
+        # for file in get_image_file_list(infer_img):
+        ####################################################
             logger.info("infer_img: {}".format(file))
             with open(file, 'rb') as f:
                 img = f.read()
@@ -96,10 +108,10 @@ def main():
 
             src_img = cv2.imread(file)
 
-            dt_boxes_json = []
+            # dt_boxes_json = []
             # parser boxes if post_result is dict
             if isinstance(post_result, dict):
-                det_box_json = {}
+                dt_box_json = {}
                 for k in post_result.keys():
                     boxes = post_result[k][0]['points']
                     dt_boxes_list = []
@@ -107,10 +119,11 @@ def main():
                         tmp_json = {"transcription": ""}
                         tmp_json['points'] = np.array(box).tolist()
                         dt_boxes_list.append(tmp_json)
-                    det_box_json[k] = dt_boxes_list
+                    dt_box_json[k] = dt_boxes_list
                     save_det_path = os.path.dirname(config['Global'][
                         'save_res_path']) + "/det_results_{}/".format(k)
                     draw_det_res(boxes, config, src_img, file, save_det_path)
+                    otstr = file + "\t" + json.dumps(dt_box_json["Student"]) + "\n"                    
             else:
                 boxes = post_result[0]['points']
                 dt_boxes_json = []
@@ -122,7 +135,8 @@ def main():
                 save_det_path = os.path.dirname(config['Global'][
                     'save_res_path']) + "/det_results/"
                 draw_det_res(boxes, config, src_img, file, save_det_path)
-            otstr = file + "\t" + json.dumps(dt_boxes_json) + "\n"
+            # print(boxes)
+                otstr = file + "\t" + json.dumps(dt_boxes_json) + "\n"
             fout.write(otstr.encode())
 
     logger.info("success!")

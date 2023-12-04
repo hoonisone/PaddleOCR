@@ -3,7 +3,7 @@ Global:
   use_gpu: true
   epoch_num: 500
   log_smooth_window: 20
-  print_batch_step: 10
+  print_batch_step: 1
   save_model_dir: /home/model/output/ch_PP-OCR_v3_det/2
   save_epoch_step: 100
   eval_batch_step:
@@ -197,7 +197,7 @@ Train:
   loader:
     shuffle: true
     drop_last: false
-    batch_size_per_card: 8
+    batch_size_per_card: 32
     num_workers: 4
 
 Eval:
@@ -225,3 +225,7 @@ Eval:
     drop_last: False
     batch_size_per_card: 1 # must be 1
     num_workers: 2
+
+Infer:
+  data_dir: None
+  label_file_list: None
