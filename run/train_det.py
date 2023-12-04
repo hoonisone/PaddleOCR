@@ -24,10 +24,13 @@ eval_lebel_file_list=["/home/dataset/val_label.txt"]
 # save_model_dir=/home/resource/model/tuned/MobileNetV3_large_x0_5
 
 # ml_PP-OCRv3_det (pretrained)
+model_name="ml_PP-OCRv3_det"
+mode="tuned"
+
 config="/home/code/PaddleOCR/configs/det/ch_PP-OCRv3/ch_PP-OCRv3_det_cml.yml"
-pretrained_model="/home/resource/model/tuned/ml_PP-OCRv3_det/latest"
-checkpoints="/home/resource/model/tuned/ml_PP-OCRv3_det/latest"
-save_model_dir="/home/resource/model/tuned/ml_PP-OCRv3_det"
+pretrained_model=f"/home/det/{model_name}/{mode}/model/latest"
+checkpoints=pretrained_model
+save_model_dir=f"/home/det/{model_name}/{mode}/model"
 # train_batch_size_per_card=64
 
 command = f""" python /home/code/PaddleOCR/tools/train.py \

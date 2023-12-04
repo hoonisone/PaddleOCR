@@ -1,10 +1,10 @@
 from pathlib import Path
 import shutil
 
-data_dir = Path("/home/dataset")
-test_label_file = Path("/home/dataset/test_label.txt")
+data_dir = Path("/home/det/dataset")
+test_label_file = Path("/home/det/dataset/test_label.txt")
 sample_num = -1
-save_path = Path("/home/dataset/infer_list.txt")
+save_path = Path("/home/det/dataset/infer_list.txt")
 
 with open(test_label_file, "r") as f:
     lines = f.readlines()

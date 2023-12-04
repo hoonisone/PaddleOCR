@@ -21,7 +21,7 @@ import numpy as np
 import os
 import sys
 import json
-
+from pathlib import Path
 __dir__ = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(__dir__)
 sys.path.insert(0, os.path.abspath(os.path.join(__dir__, '..')))
@@ -119,8 +119,20 @@ def main():
 
     model.eval()
 
+
+
+
     with open(save_res_path, "w") as fout:
-        for file in get_image_file_list(config['Global']['infer_img']):
+        #################################################### MH Modification Start
+        infer_paths = []
+        dataset_dir = Path(config['Infer']["data_dir"])
+        for infor_file in config['Infer']['infer_file_list']:    
+            with open(infor_file, "r") as f:
+                paths = [str(dataset_dir/line.strip("\n")) for line in f.readlines()]                
+            infer_paths += paths
+        for file in infer_paths:
+        # for file in get_image_file_list(config['Global']['infer_img']):
+        ####################################################
             logger.info("infer_img: {}".format(file))
             with open(file, 'rb') as f:
                 img = f.read()

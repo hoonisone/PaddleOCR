@@ -1,21 +1,15 @@
 import os
-from det_config import *
-
+from rec_config import *
 
 model_and_configs=[
-    ml_PP_OCRv3_det_pretrained,
-    ml_PP_OCRv3_det_tuned,
-    en_PP_OCRv3_det_pretrained,
-    ch_PP_OCRv3_det_pretrained,
-    
-    MobileNetV3_large_x0_5_pretrained,
-    MobileNetV3_large_x0_5_tuned
+    korean_PP_OCRv3_rec_pretrained
 ]
 
 # 모델에 관계없이 동일한 설정
-infer_img="/home/det/dataset/infer_samples"
-data_dir="/home/det/dataset"
-infer_file_list = ["/home/det/dataset/infer_list.txt"]
+infer_img="/home/rec/dataset/infer_samples"
+data_dir="/home/rec/dataset"
+infer_file_list = ["/home/rec/dataset/infer_list.txt"]
+
 for model_and_config in model_and_configs:
     model_name = model_and_config["model_name"]
     config = model_and_config["config"]
@@ -24,7 +18,7 @@ for model_and_config in model_and_configs:
     command = f"""
     model_name={model_name}
     config={config}
-    python /home/code/PaddleOCR/tools/infer_det.py \
+    python /home/code/PaddleOCR/tools/infer_rec.py \
     -c {config} \
     -o Global.infer_img={infer_img} \
         Global.pretrained_model={model_name}\

@@ -90,7 +90,7 @@ def load_config(path):
     return YamlConfigLoader.load_config(path)  
 
 if __name__ == "__main__":
-    args = tools.parse_args()
-    config = tools.load_config(args.config_path)    
+    args = parse_args()
+    config = load_config(args.config_path)    
     main(config)
  

@@ -144,12 +144,14 @@ class SimpleDataSet(Dataset):
         data_line = self.data_lines[file_idx]
         try:
             data_line = data_line.decode('utf-8')
+            
             substr = data_line.strip("\n").split(self.delimiter)
             file_name = substr[0]
             file_name = self._try_parse_filename_list(file_name)
             label = substr[1]
             img_path = os.path.join(self.data_dir, file_name)
             data = {'img_path': img_path, 'label': label}
+            
             if not os.path.exists(img_path):
                 raise Exception("{} does not exist!".format(img_path))
             with open(data['img_path'], 'rb') as f:

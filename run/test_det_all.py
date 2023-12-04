@@ -1,5 +1,5 @@
 import os
-from model_config import *
+from run.det_config import *
 
 
 # 테스트 될 모델 설정 정보들
@@ -17,9 +17,9 @@ model_and_configs=[
 ]
 
 # 모델에 관계없이 동일한 설정
-data_dir="/home/dataset"
-label_file_list=["/home/dataset/test_label.txt"]
-test_save_path="/home/resource/test"
+data_dir="/home/det/dataset"
+label_file_list=["/home/det/dataset/test_label.txt"]
+test_save_path="/home/det/resource/test"
 
 for model_and_config in model_and_configs:
     model_name = model_and_config["model_name"]

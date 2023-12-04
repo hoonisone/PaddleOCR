@@ -38,6 +38,8 @@ class RecMetric(object):
 
     def __call__(self, pred_label, *args, **kwargs):
         preds, labels = pred_label
+        # preds: [(test, acc), ...]
+        # labels: [(test, acc), ...]
         correct_num = 0
         all_num = 0
         norm_edit_dis = 0.0
@@ -48,6 +50,7 @@ class RecMetric(object):
             if self.is_filter:
                 pred = self._normalize_text(pred)
                 target = self._normalize_text(target)
+        
             norm_edit_dis += Levenshtein.normalized_distance(pred, target)
             if pred == target:
                 correct_num += 1

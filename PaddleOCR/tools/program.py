@@ -618,6 +618,7 @@ def eval(model,
                 eval_class(preds[0], batch_numpy[2:], epoch_reset=(idx == 0))
             else:
                 post_result = post_process_class(preds, batch_numpy[1])
+                # print(f"post_result: {batch_numpy}")
                 eval_class(post_result, batch_numpy)
 
             pbar.update(1)
