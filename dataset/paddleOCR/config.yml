@@ -1,4 +1,0 @@
-dataset_dir: /home/dataset
-random_seed: 100
-train_val_test_ratio: [0.8, 0.1, 0.1]
-infer_num: 100 # test 파일 중 infer sample에 넣을 개수
