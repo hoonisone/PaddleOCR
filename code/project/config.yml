@@ -1,0 +1,13 @@
+db:
+  dataset_db:
+    root_dir: 
+    config_name: config.yml
+  labelset_db:
+    root_dir: 
+    config_name: config.yml
+  model_db:
+    root_dir: 
+    config_name: config.yml
+  work_db:
+    root_dir: 
+    config_name: config.yml

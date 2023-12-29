@@ -1,0 +1,6 @@
+name: korean_image_rec
+task: 
+  - STR
+labelfiles:
+  - label.txt
+options: [] # ex) which augmented?

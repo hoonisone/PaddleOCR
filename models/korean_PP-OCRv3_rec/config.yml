@@ -1,0 +1,2 @@
+name: korean_PP-OCRv3_rec
+pretrained_weight_path: '{root}/pretrained'
