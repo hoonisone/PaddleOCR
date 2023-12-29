@@ -1,4 +1,5 @@
 from pathlib import Path
+from pretrained_models import *
 DEFAILT_CONFIG = {
     "ml_PP-OCRv3_det":"/home/configs/det/ch_PP-OCRv3/ch_PP-OCRv3_det_cml.yml",
     "korean_PP-OCRv3_rec": "/home/configs/rec/PP-OCRv3/multi_language/korean_PP-OCRv3_rec.yml",
@@ -12,12 +13,14 @@ DEFAILT_LANGUAGE_DICT = {
 }
 
 
-def make_PP_OCR_config(task, model_name, dataset, mode, version, config=None):
+def make_PP_OCR_config(task, model_name, labelset, mode, version, config=None):
     assert task in ["det", "rec"]
     assert mode in ["scratch", "finetune"]
     assert (version in ["latest", "best_accuracy"]) or (version[:11] == "iter_epoch_" and 0 < int(version[11:])), f"{version} is invalid"
 
-    output_path = f"/home/output/{task}___{model_name}___{dataset}___{'default_config'}___{mode}"
+    
+    labelset_name = "_".join(labelset.path.parts[3:])
+    output_path = f"/home/output/{task}___{model_name}___{labelset_name}___{'default_config'}___{mode}"
 
     config = DEFAILT_CONFIG[model_name] if config == None else config
     
@@ -27,19 +30,20 @@ def make_PP_OCR_config(task, model_name, dataset, mode, version, config=None):
             if mode == "scratch":
                 model = ""
             elif mode == "finetune":
-                model = f"/home/pretrained_models/{model_name}/pretrained"
+                model = PretrainedModelDB().get_model(model_name)["pretrained"]
     
     if version == "pretrained":
         if mode == "scratch":
             model = ""
         elif mode == "finetune":
-            model = f"/home/pretrained_models/{model_name}/pretrained"
+            model = PretrainedModelDB().get_model(model_name)["pretrained"]
   
     data_dir=f"/home/datasets"
-    train_label_file_list=[f"/home/dataset_labels/{dataset}/train_label.txt"]
-    val_label_file_list=[f"/home/dataset_labels/{dataset}/val_label.txt"]
-    test_label_file_list=[f"/home/dataset_labels/{dataset}/test_label.txt"]
-    infer_list_file_list=[f"/home/dataset_labels/{dataset}/infer_list.txt"]
+    train_label_file_list=[str(labelset.train)] 
+    val_label_file_list=[str(labelset.eval)]
+    test_label_file_list=[str(labelset.test)]
+    infer_list_file_list=[str(labelset.infer)]
+    
 
     
     save_model_dir = f"{output_path}/trained_model"

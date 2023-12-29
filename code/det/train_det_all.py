@@ -1,5 +1,7 @@
 from rec.config import *
-
+from outputs import OutputDB
+from labelsets import LabelsetDB
+from pretrained_models import PretrainedModelDB
 ########## Dataset ##########
 orders=[    
 
@@ -34,3 +36,8 @@ with open("train_det_all.sh", "w") as f:
 
 
         f.write(command)
+        
+
+        command = f""" python /home/code/PaddleOCR/tools/train.py \
+        -c /home/outputs/output1/config.yml \
+            
