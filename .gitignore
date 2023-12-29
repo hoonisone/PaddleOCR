@@ -1,2 +1,4 @@
-/pretrained_models/**/*.pdparams
-/pretrained_models/**/*.pdopt
+models/**/*.pdparams
+models/**/*.pdopt
+models/**/*.states
+models/**/*.log
