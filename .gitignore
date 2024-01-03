@@ -1,9 +1,7 @@
-!datasets/test1/*
-!datasets/test2/*
-!labelsets/test/*
-!labelsets/test_k_fold_5_1/*
-!works/test/*
-
+!datasets/
+!labelsets/
+!works/
+!origin_datasets/
 
 models/**/*.pdparams
 models/**/*.pdopt
@@ -19,4 +17,10 @@ datasets/**/*.[jpeg][JPEG]
 datasets/**/*.[txt][TXT]
 datasets/**/*.[json][JSON]
 labelsets/**/*.[txt][TXT]
+origin_datasets/*
 
+!datasets/test1/*
+!datasets/test2/*
+!labelsets/test/*
+!labelsets/test_k_fold_5_1/*
+!works/test/*
