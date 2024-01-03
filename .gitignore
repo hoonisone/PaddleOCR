@@ -13,8 +13,8 @@ datasets/**/*.[txt][TXT]
 datasets/**/*.[json][JSON]
 labelsets/**/*.[txt][TXT]
 
-!datasets/test1
-!datasets/test2
-!labelsets/test
-!labelsets/test_k_fold_5_1
-!works/test
+!datasets/test1/*
+!datasets/test2/*
+!labelsets/test/*
+!labelsets/test_k_fold_5_1/*
+!works/test/*
