@@ -3,30 +3,31 @@ import project
 import yaml
 from pathlib import Path
 class DB:
-    def __init__(self, type):
-        assert type in ["dataset_db", "labelset_db", "model_db", "work_db"]
-        
-        self.root = project.config["db"][type]["root_dir"]
-        self.config_name = project.config["db"][type]["config_name"]
-    
+    def __init__(self, root, config_name):
+        self.root = root
+        self.config_name = config_name
+
         
     def get_all_id(self):
         path_list = Path(self.root).glob("*")
         element_list = []
         for path in path_list:
             if path.is_dir():
-                element_list.append(path)
+                element_list.append(path.name)
         return element_list
         
 
     def get_path(self, id):
-        return self.root/id/self.config_name
+        return str(Path(self.root)/id/self.config_name)
     
-    def get_value(self, id):
+    def get_config(self, id):
         path = self.get_path(id)
         with open(path) as f:
             value = yaml.load(f, Loader=yaml.FullLoader)
         return self.insert_root(value)
+    
+    def get_root(self):
+        return self.root
 
     def insert_root(self, config):
         # config 안에 문자열 중 "{root}" 가 있으면 이를 실제 root로 대체해줌

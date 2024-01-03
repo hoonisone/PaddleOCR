@@ -1,28 +1,39 @@
 from pathlib import Path
-import yaml
 import project
-
-from db import DB
-
+from .db import DB
 
 class DatasetDB(DB):    
+    DIR = "datasets"
+    ROOT = f"{project.PROJECT_ROOT}/{DIR}"
+    CONFIG_NAME = "config.yml"
     def __init__(self):
-        super().__init__("dataset_db")
-        
-    def get_value(self, id):
-        value = super().get_value(id)
-        new_value = {
-            "name":value["name"],
-            "pretrained":self.root/value["pretrained"]
-        }
-        return new_value
+
+        super().__init__(DatasetDB.ROOT, DatasetDB.CONFIG_NAME)    
     
+    def get_all_labels(self, id):
+        # 모든 레이블 파일을 로드하여 리스트로 합쳐 반환
+        config = self.get_config(id)       
+        
+        label_paths = [Path(self.ROOT)/config["name"]/labelfile for labelfile in config["labelfiles"]]
+        labels = sum([self.load_text_file(labelfile_path) for labelfile_path in label_paths], [])
+        return [str(Path(self.DIR)/label) for label in labels] # dataset 기준 상대 경로로 바꾸기
+        
+    @staticmethod
+    def load_text_file(path):
+        # 단일 레이블 파일을 로드하여 리스트로 반환
+        # datasets root로 부터 상대 경로로 변환
+        with open(path) as f:
+            lines = f.readlines()
+        lines = [line.rstrip('\n') for line in lines] #
+        return lines
+
 if __name__ == "__main__":
-    mdb = ModelDB()
+    mdb = DatasetDB()
     print(mdb.get_all_id())
     print()
     id = mdb.get_all_id()[0]
-    print(mdb.get_value(id))
+    print(id)
+    print(mdb.get_config(id))
     
 # class DatasetDB2: # DatasetDB
 #     ROOT = project.ROOT/"datasets"

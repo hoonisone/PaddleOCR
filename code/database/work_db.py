@@ -1,91 +1,66 @@
 from pathlib import Path
 import yaml
-from pretrained_models import PretrainedModelDB
-from labelsets import LabelsetDB
-from datasets import DatasetDB
+from .labelset_db import LabelsetDB
+from .dataset_db import DatasetDB
+from .model_db import ModelDB
+from .db import DB
 import copy
-
-class WorkDB:
-    ROOT = Path("/home/outputs")
-    CONFIG_FILE = "config.yml"
+import project
+class WorkDB(DB):
+    DIR = "works"
+    ROOT = f"{project.PROJECT_ROOT}/{DIR}"
+    CONFIG_NAME = "config.yml"
     
     def __init__(self, root=None):
-        self.root = root if root else WorkDB.ROOT
-        self.name_path = WorkDB.get_name_path_list(self.root)        
+        super().__init__(self.ROOT, self.CONFIG_NAME)
 
-    @staticmethod    
-    def get_path_list(root):
-        path_list = root.glob("*")
-
-        dataset_list = []
-        for path in path_list:
-            if WorkDB.is_target(path):
-                dataset_list.append(path)
-            elif path.is_dir():
-                dataset_list += WorkDB.get_path_list(path)
-            else:
-                pass
-        return dataset_list
-            
-    @staticmethod
-    def get_name_path_list(root):  
-        name_path = {}
-        for path in WorkDB.get_path_list(root):
-            with open(str(path/WorkDB.CONFIG_FILE)) as f:
-                config = yaml.load(f, Loader=yaml.FullLoader)
-            key = config["DB"]["name"]
-            value = config
-            name_path[key] = value
-        
-        return name_path
-    
-    @staticmethod
-    def is_target(path):
-        path_list = path.glob("*")
-        return any([path.name == WorkDB.CONFIG_FILE for path in path_list])
-    
-    def get_name_list(self):
-        return list(self.name_path.keys())
-    
-    
-    def make(self, origin_config, name, labelset_name, model_name, pretrained=True):
-        with open(origin_config) as f:
+    def make(self, name, labelsets, model, origin_config, pretrained=True):
+        with open(str(Path(project.PROJECT_ROOT)/origin_config)) as f:
             config = yaml.load(f, Loader=yaml.FullLoader)
         
         config["DB"] = {
             "origin_config":origin_config,
             "name":name,
-            "labelset_name":labelset_name,
-            "model_name":model_name,
+            "labelsets":labelsets,
+            "model":model,
             "pretrained":pretrained
         }
+        for labelset in labelsets:
+            assert labelset in LabelsetDB().get_all_id(), f"the labelset '{labelset}' does not exist!"
+        assert model in ModelDB().get_all_id(), f"model '{model}' does not exist!"
         
-        # assert labelset_name in LabelsetDB().get_name_list(), f"the labelset '{labelset_name}' does not exist!"
-        # assert model in PretrainedModelDB().get_name_list(), f"model '{model}' does not exist!"
-        
-        model = str(PretrainedModelDB().get(model_name)["pretrained"]) if pretrained else ""
-        labelset = LabelsetDB().get(labelset_name)
+        model = str(ModelDB().get_config(model)["pretrained"]) if pretrained else ""
+        labelsets = [LabelsetDB().get_config(labelset) for labelset in labelsets]
         
         data_dir = str(DatasetDB().root)
         config["Global"]["pretrained_model"]=model
         config["Global"]["print_batch_step"]=1
         config["Global"]["save_epoch_step"]=1
         config["Global"]["eval_batch_step"]=[0, 2000]
-        config["Global"]["save_model_dir"] = str(self.root/name/"trained_model")
+        config["Global"]["save_model_dir"] = str(Path(self.root)/name/"trained_model")
+        config["Global"]["save_inference_dif"] = None
         config["Train"]["dataset"]["data_dir"] = data_dir
-        config["Train"]["dataset"]["label_file_list"] = [str(x) for x in labelset["label"]["train"]]
+        config["Train"]["dataset"]["label_file_list"] = sum([labelset["label"]["train"] for labelset in labelsets], [])
         config["Eval"]["dataset"]["data_dir"] = data_dir
-        config["Eval"]["dataset"]["label_file_list"] = [str(x) for x in labelset["label"]["eval"]]
+        config["Eval"]["dataset"]["label_file_list"] = sum([labelset["label"]["eval"] for labelset in labelsets], [])
         # config["Test"] = copy.deepcopy(config["Eval"])        
         # config["Test"]["dataset"]["data_dir"] = data_dir
         # config["Test"]["dataset"]["label_file_list"] = [str(x) for x in labelset["label"]["test"]]
+        
 
-        (self.root/name).mkdir(parents = True, exist_ok=True)
-        with open(self.root/name/WorkDB.CONFIG_FILE, "w") as f:
+        dir_path = Path(self.root)/name
+        dir_path.mkdir(parents = True, exist_ok=True)
+        with open(dir_path/WorkDB.CONFIG_NAME, "w") as f:
             yaml.dump(config, f)   
-            
-    def get(self, name):
-        return self.name_path[name]
+                
+    def train(self, id, epoch):
+        code = str(Path(project.PROJECT_ROOT)/"code/PaddleOCR/tools/train.py")
+        config = self.get_config(id)
+        config = str(Path(project.PROJECT_ROOT)/self.DIR/config["DB"]["name"]/self.CONFIG_NAME)
+        
+        return f"python {code} -c {config} -o Global.epoch_num={epoch}"
+                
+        
     
 if __name__ == "__main__":
     mdb = WorkDB()
