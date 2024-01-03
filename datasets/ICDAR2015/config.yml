@@ -1,0 +1,8 @@
+name: icdar
+task: 
+  - STD 
+  - STR
+labelfiles:
+  - train_label.txt
+  - test_label.txt
+options: [] # ex) which augmented?
