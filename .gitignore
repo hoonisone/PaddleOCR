@@ -3,24 +3,9 @@
 !works/
 !origin_datasets/
 
-models/**/*.pdparams
-models/**/*.pdopt
-models/**/*.states
-models/**/*.log
-works/**/*.pdparams
-works/**/*.pdopt
-works/**/*.states
-works/**/*.log
-datasets/**/*.[png][Png][pNg][pnG][PNg][PnG][pNG][PNG]
-datasets/**/*.[jpg][Jpg][jPg][jpG][JPg][JpG][jPG][JPG]
-datasets/**/*.[jpeg][JPEG]
-datasets/**/*.[txt][TXT]
-datasets/**/*.[json][JSON]
-labelsets/**/*.[txt][TXT]
-origin_datasets/*
-
 !datasets/test1/*
 !datasets/test2/*
 !labelsets/test/*
 !labelsets/test_k_fold_5_1/*
 !works/test/*
+
