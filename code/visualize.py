@@ -81,14 +81,18 @@ def main(image_dir, predicted_dir, visualized_dir):
 
     for image_path in image_path_list:
         try:
+
             # load image and prediction
             img = load_image(image_path)
             prediction_path = get_prediction_path(predicted_dir, image_path)
             boxes, labels = load_prediction(prediction_path)
-
+            
             # visualize
+            print("hello1")
             img = draw_multiple_boxes(img, boxes)
-            img = draw_multiple_labels(img, boxes, labels)
+            print("hello2")
+            # img = draw_multiple_labels(img, boxes, labels)
+            print("hello3")
             plt.imshow(img)
 
             # save
