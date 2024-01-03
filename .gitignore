@@ -2,3 +2,7 @@ models/**/*.pdparams
 models/**/*.pdopt
 models/**/*.states
 models/**/*.log
+datasets/**/*.png
+datasets/**/*.jpg
+datasets/**/*.txt
+datasets/**/*.json
