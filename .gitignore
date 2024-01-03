@@ -2,7 +2,8 @@ models/**/*.pdparams
 models/**/*.pdopt
 models/**/*.states
 models/**/*.log
-datasets/**/*.png
-datasets/**/*.jpg
-datasets/**/*.txt
-datasets/**/*.json
+datasets/**/*.[png][Png][pNg][pnG][PNg][PnG][pNG][PNG]
+datasets/**/*.[jpg][Jpg][jPg][jpG][JPg][JpG][jPG][JPG]
+datasets/**/*.[jpeg][JPEG]
+datasets/**/*.[txt][TXT]
+datasets/**/*.[json][JSON]
