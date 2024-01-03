@@ -26,7 +26,6 @@ import time
 import random
 from ppocr.utils.logging import get_logger
 
-
 def str2bool(v):
     return v.lower() in ("true", "yes", "t", "y", "1")
 

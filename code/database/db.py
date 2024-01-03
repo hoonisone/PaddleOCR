@@ -23,8 +23,9 @@ class DB:
     def get_config(self, id):
         path = self.get_path(id)
         with open(path) as f:
-            value = yaml.load(f, Loader=yaml.FullLoader)
-        return self.insert_root(value)
+            config = yaml.load(f, Loader=yaml.FullLoader)
+        config["name"] = id
+        return config
     
     def get_root(self):
         return self.root

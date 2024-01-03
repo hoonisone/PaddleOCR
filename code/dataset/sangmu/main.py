@@ -29,5 +29,8 @@ print(names)
 #         target_path = path.parent/f"{i}{ext}"
 #         path.rename(target_path)
 
+print("이름 변경 (심플하게)")##########################################
+img = Image.open(det_data_dir/line[0])
+cropped_img = img.crop(bbox)
 # 모든 파일 이름 로드
 # Path(target_path).mkdir(parents=True, exist_ok=True)

@@ -7,8 +7,10 @@ from PIL import ImageFont, ImageDraw, Image
 from PaddleOCR.ppocr.utils.utility import check_and_read, get_image_file_list
 import glob
 from pathlib import Path
+import cv2
 # fontpath = "fonts/gulim.ttc"
 fontpath = "usr/share/fonts/nanum/NanumGothic.ttf"
+fontpath= "C:\Windows\Fonts\malgun.ttf"
 # fontpath = "usr/share/fonts/truetype/dejavu/DejaBuSansMono.ttf"
 # ImageFont.truetype(fontpath, 20)
 
@@ -43,32 +45,40 @@ def load_prediction(prediction_path):
         result = json.loads(f.readline())[0]
 
     boxes = [change_box_representation(*x[0]) for x in result]
+    poligons = [x[0] for x in result]
     labels = [x[1][0] for x in result]
-    return [boxes, labels]
+    return [boxes, poligons, labels]
 
 
-def draw_multiple_labels(img, boxes, labels, font_size = 13):
+def draw_multiple_labels(img, boxes, labels, font_size = None):
+    font_size = font_size if font_size else max(2, max(img.shape[0], img.shape[1])/30)
+    
 
     img_pil = Image.fromarray(img)
     # fontpath = "fonts/gulim.ttc"
     font = ImageFont.truetype(fontpath, font_size)
     draw = ImageDraw.Draw(img_pil)
-
+    
     for box, label in zip(boxes, labels):
         box[1] -= font_size
-        draw.text(box, label, font=font, fill=(0,0,255))
+        draw.text(box, label, font=font, fill=(255,0,0))
     return img_pil
 
 
 def draw_multiple_boxes(img, boxes):
-    boxes = [[x, y, x+w, x+h]for x, y, w, h in boxes]
-    return bbv.draw_multiple_rectangles(img, boxes, thickness=2, bbox_color=(0,0,0))
+    # boxes = [[x, y, x+w, x+h]for x, y, w, h in boxes]
+    print(img.shape[0])
+    return bbv.draw_multiple_rectangles(img, boxes, thickness=max(2, int(img.shape[0]/200)), bbox_color=(0,255,0))
 
 def get_image_file_name_list(image_dir):
     image_path_list = get_image_file_list(image_dir)
     image_file_name_list = [x.split("\\")[-1] for x in image_path_list]
     return image_file_name_list
-
+def draw_poligons(img, poligons):
+    for poligon in poligons:
+        poligon = np.array(poligon,dtype=np.int32)
+        img = cv2.polylines(img,[poligon],True,(0,255,0),4)
+    return img
 
 def main(image_dir, predicted_dir, visualized_dir):
     # change all path paremeters into Path object
@@ -85,14 +95,18 @@ def main(image_dir, predicted_dir, visualized_dir):
             # load image and prediction
             img = load_image(image_path)
             prediction_path = get_prediction_path(predicted_dir, image_path)
-            boxes, labels = load_prediction(prediction_path)
+            boxes, poligons, labels = load_prediction(prediction_path)
             
             # visualize
-            print("hello1")
-            img = draw_multiple_boxes(img, boxes)
-            print("hello2")
-            # img = draw_multiple_labels(img, boxes, labels)
-            print("hello3")
+            # img = draw_multiple_boxes(img, boxes)
+            # pts1 = np.array([[783.0, 40.0], [1177.0, 51.0], [1174.0, 200.0], [780.0, 189.0]],dtype=np.int32)
+            img = draw_poligons(img, poligons)
+            # for poligon in poligons:
+            #     print(poligon)
+            #     poligon = np.array(poligon,dtype=np.int32)
+            #     img = cv2.polylines(img,[poligon],True,(255,255,255),4)
+
+            img = draw_multiple_labels(img, boxes, labels)
             plt.imshow(img)
 
             # save

@@ -3,7 +3,7 @@ import predict
 from pathlib import Path
 import project
 def main(image_dir, predicted_dir, visualized_dir):
-    predict.main(image_dir, predicted_dir)
+    # predict.main(image_dir, predicted_dir)
     visualize.main(image_dir, predicted_dir, visualized_dir)
 
 if __name__=="__main__":
