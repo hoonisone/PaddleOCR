@@ -1,1 +1,4 @@
+inference_model: ./models/korean_PP-OCRv3_rec/inference_model/inference
+inference_model_dir: ./models/korean_PP-OCRv3_rec/inference_model
+name: korean_PP-OCRv3_rec
 pretrained: pretrained_model

@@ -1,0 +1,8 @@
+,acc,norm_edit_dis,fps,model
+0,0.573360475769179,0.7198571294187384,4541.951104556333,/home/pretrained_models/korean_PP-OCRv3_rec/pretrained
+0,0.5737615202910767,0.7199569574321996,3882.029043724929,/home/pretrained_models/korean_PP-OCRv3_rec/pretrained
+0,0.5748138461679697,0.72063551613527,3509.816865693521,/home/pretrained_models/korean_PP-OCRv3_rec/pretrained
+0,0.573360475769179,0.7198571294187386,5291.086086149919,/home/pretrained_models/korean_PP-OCRv3_rec/pretrained
+0,0.8315789473080107,0.9000778719010837,5061.861056804963,/home/output/rec___korean_PP-OCRv3_rec___rec_16_04_80___default_config___finetune/trained_model/best_accuracy
+0,0.5733614013697159,0.7198577534007677,5716.609018011245,/home/pretrained_models/korean_PP-OCRv3_rec/pretrained
+0,0.5733614013697159,0.7198577534007677,5634.56944196892,/home/pretrained_models/korean_PP-OCRv3_rec/pretrained

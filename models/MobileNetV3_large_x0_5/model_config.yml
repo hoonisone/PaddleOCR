@@ -1,1 +1,4 @@
+inference_model: ./models/MobileNetV3_large_x0_5/inference_model/inference
+inference_model_dir: ./models/MobileNetV3_large_x0_5/inference_model
+name: MobileNetV3_large_x0_5
 pretrained: pretrained_model

@@ -13,7 +13,6 @@ class ModelDB(DB):
         super().__init__(self.ROOT, self.CONFIG_NAME)
     
     def make_inference_model(self, id):
-        self.get_config(id)
         
         root = str(Path(self.ROOT)/id).replace("\\", "/")
         config = root+"/pretrained_model/config.yml"
@@ -25,6 +24,11 @@ class ModelDB(DB):
         -o Global.pretrained_model={pretrained} \
         Global.save_inference_dir={save_inferencd} \
         Global.checkpoints={checkpoint}"""
+        
+        config = self.get_config(id)
+        config["inference_model_dir"] = f"./models/{id}/inference_model"
+        config["inference_model"] = f"./models/{id}/inference_model/inference"
+        self.update_config(id, config)
         
         with open(Path(project.PROJECT_ROOT)/"code/database/make_inference_model.sh", "a") as f:
             f.write(command+"\n")

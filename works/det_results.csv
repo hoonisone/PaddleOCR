@@ -1,0 +1,16 @@
+,precision,recall,hmean,fps,model,acc,norm_edit_dis
+0,0.1215969492174271,0.3253277832855145,0.1770269715065566,10.64661940115024,/home/resource/model/pretrained/ml_PP-OCRv3_det/best_accuracy,,
+0,0.1170996297153436,0.2657654404475054,0.1625692030578866,10.627648425830618,/home/resource/model/pretrained/en_PP-OCRv3_det/best_accuracy,,
+0,0.141872889082947,0.2901300628319688,0.190561615569216,10.661482590307411,/home/resource/model/pretrained/ch_PP-OCRv3_det/best_accuracy,,
+0,0.0,0.0,0.0,10.8137302405688,/home/resource/model/pretrained/ch_ppocr_mobile_v2_det/best_accuracy,,
+0,0.0,0.0,0.0,10.699259618743644,/home/resource/model/pretrained/ch_ppocr_server_v2_det/best_accuracy,,
+0,0.0,0.0,0.0,72.46003091130211,/home/resource/model/pretrained/MobileNetV3_large_x0_5/best_accuracy,,
+0,0.4551798025615516,0.4295684487660116,0.4420034318295434,72.22864771774798,/home/resource/model/tuned/MobileNetV3_large_x0_5/best_accuracy,,
+0,,,,1.0044568404156855,/home/rec_resource/korean_PP-OCRv3_rec/pretrained/model/best_accuracy,0.0,0.3888894999993888
+0,,,,0.9285312751452076,/home/rec_resource/korean_PP-OCRv3_rec/pretrained/model/best_accuracy,0.0,0.3388895499993388
+0,,,,0.7865620973709051,/home/rec_resource/korean_PP-OCRv3_rec/pretrained/model/best_accuracy,0.0,0.3888894999993888
+0,,,,0.7783544948820406,/home/rec_resource/korean_PP-OCRv3_rec/pretrained/model/best_accuracy,0.0,0.3888894999993888
+0,,,,0.8849293923311299,/home/rec_resource/korean_PP-OCRv3_rec/pretrained/model/best_accuracy,0.0,0.3888894999993888
+0,,,,1.1400416250835772,/home/rec_resource/korean_PP-OCRv3_rec/pretrained/model/best_accuracy,0.0,0.3888894999993888
+0,,,,1.1514549283365971,/home/rec_resource/korean_PP-OCRv3_rec/pretrained/model/best_accuracy,0.0,0.3888894999993888
+0,,,,1.1531237008881956,/home/rec_resource/korean_PP-OCRv3_rec/pretrained/model/best_accuracy,0.49999950000050003,0.7014288699997013

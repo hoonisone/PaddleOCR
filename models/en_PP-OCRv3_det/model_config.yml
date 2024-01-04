@@ -1,1 +1,4 @@
+inference_model: ./models/en_PP-OCRv3_det/inference_model/Student/inference
+inference_model_dir: ./models/en_PP-OCRv3_det/inference_model/Student
+name: en_PP-OCRv3_det
 pretrained: pretrained_model

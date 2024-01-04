@@ -1,2 +1,4 @@
+inference_model: ./models/ml_PP-OCRv3_det/inference_model/Student/inference
+inference_model_dir: ./models/ml_PP-OCRv3_det/inference_model/Student
 name: ml_PP-OCRv3_det
 pretrained: pretrained_model

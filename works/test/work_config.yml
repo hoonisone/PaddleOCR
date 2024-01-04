@@ -175,3 +175,6 @@ Train:
     num_workers: 4
     shuffle: true
     use_shared_memory: false
+inference_model: ./works/test/inference_model/best/inference
+inference_model_dir: ./works/test/inference_model/best
+name: test

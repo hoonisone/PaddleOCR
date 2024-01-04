@@ -1,0 +1,167 @@
+Global:
+  use_gpu: true
+  use_xpu: false
+  use_mlu: false
+  epoch_num: 50
+  log_smooth_window: 20
+  print_batch_step: 1
+  save_model_dir: /home/output/det___MobileNetV3_large_x0_5___ai_hub_det_08_02_90_k_fold_5_5___default_config___finetune/trained_model
+  save_epoch_step: 1
+  eval_batch_step:
+  - 0
+  - 2000
+  cal_metric_during_train: false
+  pretrained_model: /home/output/det___MobileNetV3_large_x0_5___ai_hub_det_08_02_90_k_fold_5_5___default_config___finetune/trained_model/latest
+  checkpoints: /home/output/det___MobileNetV3_large_x0_5___ai_hub_det_08_02_90_k_fold_5_5___default_config___finetune/trained_model/latest
+  infer_img: /home/dataset/samples
+  save_inference_dir: /home/output/det_mv3_db/predict/visualize
+  save_res_path: /home/output/det_mv3_db/predict/predicts_db.txt
+  use_visualdl: true
+Architecture:
+  model_type: det
+  algorithm: DB
+  Transform: null
+  Backbone:
+    name: MobileNetV3
+    scale: 0.5
+    model_name: large
+  Neck:
+    name: DBFPN
+    out_channels: 256
+  Head:
+    name: DBHead
+    k: 50
+Loss:
+  name: DBLoss
+  balance_loss: true
+  main_loss_type: DiceLoss
+  alpha: 5
+  beta: 10
+  ohem_ratio: 3
+Optimizer:
+  name: Adam
+  beta1: 0.9
+  beta2: 0.999
+  lr:
+    learning_rate: 0.001
+  regularizer:
+    name: L2
+    factor: 0
+PostProcess:
+  name: DBPostProcess
+  thresh: 0.3
+  box_thresh: 0.6
+  max_candidates: 1000
+  unclip_ratio: 1.5
+Metric:
+  name: DetMetric
+  main_indicator: hmean
+Train:
+  dataset:
+    name: SimpleDataSet
+    data_dir: /home/datasets
+    label_file_list:
+    - /home/dataset_labels/ai_hub_det_08_02_90_k_fold_5_5/train_label.txt
+    ratio_list:
+    - 1.0
+    transforms:
+    - DecodeImage:
+        img_mode: BGR
+        channel_first: false
+    - DetLabelEncode: null
+    - IaaAugment:
+        augmenter_args:
+        - type: Fliplr
+          args:
+            p: 0.5
+        - type: Affine
+          args:
+            rotate:
+            - -10
+            - 10
+        - type: Resize
+          args:
+            size:
+            - 0.5
+            - 3
+    - EastRandomCropData:
+        size:
+        - 640
+        - 640
+        max_tries: 50
+        keep_ratio: true
+    - MakeBorderMap:
+        shrink_ratio: 0.4
+        thresh_min: 0.3
+        thresh_max: 0.7
+    - MakeShrinkMap:
+        shrink_ratio: 0.4
+        min_text_size: 8
+    - NormalizeImage:
+        scale: 1./255.
+        mean:
+        - 0.485
+        - 0.456
+        - 0.406
+        std:
+        - 0.229
+        - 0.224
+        - 0.225
+        order: hwc
+    - ToCHWImage: null
+    - KeepKeys:
+        keep_keys:
+        - image
+        - threshold_map
+        - threshold_mask
+        - shrink_map
+        - shrink_mask
+  loader:
+    shuffle: true
+    drop_last: false
+    batch_size_per_card: 128
+    num_workers: 8
+    use_shared_memory: true
+Eval:
+  dataset:
+    name: SimpleDataSet
+    data_dir: /home/datasets
+    label_file_list:
+    - /home/dataset_labels/ai_hub_det_08_02_90_k_fold_5_5/val_label.txt
+    transforms:
+    - DecodeImage:
+        img_mode: BGR
+        channel_first: false
+    - DetLabelEncode: null
+    - DetResizeForTest:
+        image_shape:
+        - 736
+        - 1280
+    - NormalizeImage:
+        scale: 1./255.
+        mean:
+        - 0.485
+        - 0.456
+        - 0.406
+        std:
+        - 0.229
+        - 0.224
+        - 0.225
+        order: hwc
+    - ToCHWImage: null
+    - KeepKeys:
+        keep_keys:
+        - image
+        - shape
+        - polys
+        - ignore_tags
+  loader:
+    shuffle: false
+    drop_last: false
+    batch_size_per_card: 1
+    num_workers: 2
+    use_shared_memory: true
+Infer:
+  data_dir: None
+  label_file_list: None
+profiler_options: null

@@ -12,11 +12,13 @@ class DB:
         path_list = Path(self.root).glob("*")
         element_list = []
         for path in path_list:
-            if path.is_dir():
+            if path.is_dir() and self.is_target(path):
                 element_list.append(path.name)
         return element_list
         
-
+    def is_target(self, path):
+        return len(list(path.glob(self.config_name))) == 1
+        
     def get_path(self, id):
         return str(Path(self.root)/id/self.config_name)
     
@@ -24,8 +26,15 @@ class DB:
         path = self.get_path(id)
         with open(path) as f:
             config = yaml.load(f, Loader=yaml.FullLoader)
+        if config == None:
+            config = {}
         config["name"] = id
         return config
+    
+    def update_config(self, id, config):
+        path = self.get_path(id)
+        with open(path, "w") as f:
+            yaml.dump(config, f)
     
     def get_root(self):
         return self.root

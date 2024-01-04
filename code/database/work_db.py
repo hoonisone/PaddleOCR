@@ -6,10 +6,11 @@ from .model_db import ModelDB
 from .db import DB
 import copy
 import project
+
 class WorkDB(DB):
     DIR = "works"
     ROOT = f"{project.PROJECT_ROOT}/{DIR}"
-    CONFIG_NAME = "config.yml"
+    CONFIG_NAME = "work_config.yml"
     
     def __init__(self, root=None):
         super().__init__(self.ROOT, self.CONFIG_NAME)
@@ -51,8 +52,39 @@ class WorkDB(DB):
         dir_path = Path(self.root)/name
         dir_path.mkdir(parents = True, exist_ok=True)
         with open(dir_path/WorkDB.CONFIG_NAME, "w") as f:
-            yaml.dump(config, f)   
-                
+            yaml.dump(config, f)
+             
+    def make_inference_model(self, id, epoch=None):
+        #None epoch means best model
+        root = str(Path(self.ROOT)/id).replace("\\", "/")
+        
+        model = f"iter_epoch_{epoch}" if epoch else "best_model/model"
+        
+        config = f"{root}/trained_model/config.yml"
+        checkpoint = f"{root}/trained_model/{model}"
+        # pretrained = root+"/pretrained_model/pretrained"
+        save_folder = f'epoch_{epoch}' if epoch else "best"
+        save_inferencd = f"{root}/inference_model/{save_folder}"
+        
+        command = f"""python code/PaddleOCR/tools/export_model.py \
+        -c {config} \
+        -o Global.save_inference_dir={save_inferencd} \
+        Global.checkpoints={checkpoint}"""
+
+        # -o Global.pretrained_model={pretrained} \        
+        if epoch == None:
+            config = self.get_config(id)
+            config["inference_model_dir"] = f"./works/{id}/inference_model/best"
+            config["inference_model"] = f"./works/{id}/inference_model/best/inference"
+            self.update_config(id, config)
+        
+        path = Path(project.PROJECT_ROOT)/"code/database/make_inference_model.sh"
+        with open(path, "a") as f:
+            f.write(command+"\n")
+        
+        print(f"{str(path)}")
+            
+            
     def train(self, id, epoch):
         code = str(Path(project.PROJECT_ROOT)/"code/PaddleOCR/tools/train.py")
         config = self.get_config(id)
