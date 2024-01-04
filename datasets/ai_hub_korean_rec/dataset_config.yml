@@ -1,4 +1,3 @@
-name: korean_image_rec
 task: 
   - STR
 labelfiles:

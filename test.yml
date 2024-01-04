@@ -1,7 +1,0 @@
-a: hello.txt
-
-b: '{root}bbdd.txt'
-
-c:
-  d: ha.txt
-  e: '{root}a.txt'
