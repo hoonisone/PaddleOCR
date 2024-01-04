@@ -5,7 +5,7 @@ from .db import DB
 class DatasetDB(DB):    
     DIR = "datasets"
     ROOT = f"{project.PROJECT_ROOT}/{DIR}"
-    CONFIG_NAME = "config.yml"
+    CONFIG_NAME = "dataset_config.yml"
     def __init__(self):
 
         super().__init__(DatasetDB.ROOT, DatasetDB.CONFIG_NAME)    
@@ -16,7 +16,8 @@ class DatasetDB(DB):
         
         label_paths = [Path(self.ROOT)/config["name"]/labelfile for labelfile in config["labelfiles"]]
         labels = sum([self.load_text_file(labelfile_path) for labelfile_path in label_paths], [])
-        return [str(Path(self.DIR)/label) for label in labels] # dataset 기준 상대 경로로 바꾸기
+        print(labels[0])
+        return [str(Path(config["name"])/label) for label in labels] # dataset 기준 상대 경로로 바꾸기
         
     @staticmethod
     def load_text_file(path):

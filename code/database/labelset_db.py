@@ -54,7 +54,6 @@ class LabelsetDB(DB):
             
         # config 생성 및 저장
         config = {}
-        config["name"]=name
         config["datasets"]=datasets
         config["split"] = {
             "train_ratio":train_ratio,
@@ -68,8 +67,10 @@ class LabelsetDB(DB):
             "infer":[LabelsetDB.INFER_LABEL_FILE]
         }
         config["seed"] = random_seed
+        config["dataset_dir"] = "./datasets"
         with open(root/name/LabelsetDB.CONFIG_NAME, "w") as f:
                 yaml.dump(config, f)   
+        
     
     def get_config(self, id):
         config = super().get_config(id)

@@ -4,7 +4,6 @@ sys.path.append("/home/code")
 from dataset.aihub.hangul_real_image_dataset import HangulRealImageDataset
 from pathlib import Path        
 import pandas as pd
-import random
 import json
 import argparse
 from config_loader import YamlConfigLoader
@@ -27,9 +26,9 @@ def to_paddle_y(y):
             print(annotation)
             continue
     return json.dumps(result)
-            
+import project
 def main(args):
-    dataset_dir = Path("/home/datasets/AIHUB/korean_image")
+    dataset_dir = Path(project.PROJECT_ROOT)/"datasets/korean_image_det"
     
     n=5
     print(f"(1/{n}) Check data dir")#######################################################
@@ -47,7 +46,7 @@ def main(args):
         paddle_label = f"{relative_path}\t{label}"
         label_list.append(paddle_label)
         
-    open(dataset_dir/"label.txt","w").write("\n".join(label_list))
+    open(dataset_dir/"label2.txt","w").write("\n".join(label_list))
     
     
     # print(f"(3/{n}) split label file (train, val, test, infer)")#######################################################

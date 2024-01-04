@@ -10,10 +10,10 @@ checklist:
     train1/source: 
         all: null
         간판:
-            all: true
+            all: null
             가로형간판: true
-            돌출간판: false
-            세로형간판: false
+            돌출간판: true
+            세로형간판: true
             실내간판: false
             실내안내판: false
             지주이용간판: false
@@ -27,15 +27,15 @@ checklist:
     val1/source: 
         all: null
         간판:
-            all: true
+            all: null
             가로형간판: true
             돌출간판: true
             세로형간판: true
-            실내간판: true
-            실내안내판: true
-            지주이용간판: true
-            창문이용광고물: true
-            현수막: True
+            실내간판: false
+            실내안내판: false
+            지주이용간판: false
+            창문이용광고물: false
+            현수막: false
         책표지: 
             all: false
             기타: true
@@ -44,22 +44,22 @@ checklist:
     train2/source: 
         all: null
         간판:
-            all: true
+            all: null
             가로형간판/가로형간판1: true
             가로형간판/가로형간판2: true
-            가로형간판/가로형간판3: true
-            가로형간판/가로형간판4: true
-            가로형간판/가로형간판5: true
+            가로형간판/가로형간판3: false
+            가로형간판/가로형간판4: false
+            가로형간판/가로형간판5: false
             돌출간판/돌출간판1: true
             돌출간판/돌출간판2: true 
             세로형간판: true
-            실내간판/실내간판1: true
-            실내간판/실내간판2: true
-            실내안내판/실내안내판1: true
-            실내안내판/실내안내판2: true
-            지주이용간판: true
-            창문이용광고물: true
-            현수막: True
+            실내간판/실내간판1: false
+            실내간판/실내간판2: false
+            실내안내판/실내안내판1: false
+            실내안내판/실내안내판2: false
+            지주이용간판: false
+            창문이용광고물: false
+            현수막: false
         책표지: 
             all: false
             총류: true
@@ -74,7 +74,7 @@ checklist:
             역사: true
             기타: true
     val2/source: 
-        all: null
+        all: false
         간판:
             all: true
             가로형간판: true

@@ -8,7 +8,7 @@ import os
 import numpy as np
 from config_loader import YamlConfigLoader
     
-with open(Path(os.path.realpath(__file__)).parent/"preprocess/organize.json") as f:
+with open(Path(os.path.realpath(__file__)).parent/"preprocess/organize.json", encoding='UTF8') as f:
     ALL_PATH_PAIR = json.load(f)
     
 
