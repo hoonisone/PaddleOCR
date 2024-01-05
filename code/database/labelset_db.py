@@ -76,8 +76,9 @@ class LabelsetDB(DB):
         config = super().get_config(id)
         for work in ["train", "eval", "test", "infer"]:
             if config["label"][work]:
-                # config["label"][work] = [f"{self.DIR}/{config['name']}/{label}" for label in config['label'][work]] # 절대 경로로 변환
-                config["label"][work] = [str((Path(self.ROOT)/config['name']/label).relative_to(project.PROJECT_ROOT)) for label in config['label'][work]] # 절대 경로로 변환
+                config["label"][work] = [f"{self.DIR}/{config['id']}/{label}" for label in config['label'][work]] # 절대 경로로 변환
+                # config["label"][work] = [str((Path(self.ROOT)/config['id']/label).relative_to(project.PROJECT_ROOT)) for label in config['label'][work]] # 절대 경로로 변환
+                
             elif config["origin_labelset"]:
                 labels = []
                 for origin_labelset in config["origin_labelset"]:

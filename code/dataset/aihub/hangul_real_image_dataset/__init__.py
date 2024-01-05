@@ -12,7 +12,7 @@ with open(Path(os.path.realpath(__file__)).parent/"preprocess/organize.json", en
     ALL_PATH_PAIR = json.load(f)
     
 
-DEFALT_CONFIG_PATH = "/home/code/dataset/aihub/hangul_real_image_dataset/config.yml"
+DEFALT_CONFIG_PATH = "./code/dataset/aihub/hangul_real_image_dataset/config.yml"
 
 class DirChecklist:
     # @staticmethod
@@ -71,7 +71,7 @@ class HangulRealImageDataset(OpenDataset):
         return Image.open(path)
     
     def load_y(self, path):
-        with open(path) as f:
+        with open(path, encoding='utf-8') as f:
             return json.load(f)
         
     def get_all_sample_list(self):

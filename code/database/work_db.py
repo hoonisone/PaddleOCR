@@ -14,36 +14,45 @@ class WorkDB(DB):
     
     def __init__(self, root=None):
         super().__init__(self.ROOT, self.CONFIG_NAME)
-
-    def make(self, name, labelsets, model, origin_config, pretrained=True):
-        with open(str(Path(project.PROJECT_ROOT)/origin_config)) as f:
-            config = yaml.load(f, Loader=yaml.FullLoader)
         
-        config["DB"] = {
-            "origin_config":origin_config,
-            "name":name,
+
+
+    def make(self, name, labelsets, model, pretrained=True):
+        modeldb = ModelDB()
+        model_config = modeldb.get_config(model)
+        train_config = model_config["train_config"]
+        
+        config = {
+            "train_config":f"{self.ROOT}/{name}/train_config.yml",
+            "id":name,
             "labelsets":labelsets,
             "model":model,
             "pretrained":pretrained
         }
+        
+        with open(str(Path(project.PROJECT_ROOT)/train_config)) as f:
+            train_config = yaml.load(f, Loader=yaml.FullLoader)
+        
         for labelset in labelsets:
             assert labelset in LabelsetDB().get_all_id(), f"the labelset '{labelset}' does not exist!"
         assert model in ModelDB().get_all_id(), f"model '{model}' does not exist!"
         
-        model = str(ModelDB().get_config(model)["pretrained"]) if pretrained else ""
+        model = str(ModelDB().get_config(model)["pretrained_model_weight"]) if pretrained else ""
         labelsets = [LabelsetDB().get_config(labelset) for labelset in labelsets]
         
         data_dir = str(DatasetDB().root)
-        config["Global"]["pretrained_model"]=model
-        config["Global"]["print_batch_step"]=1
-        config["Global"]["save_epoch_step"]=1
-        config["Global"]["eval_batch_step"]=[0, 2000]
-        config["Global"]["save_model_dir"] = str(Path(self.root)/name/"trained_model")
-        config["Global"]["save_inference_dif"] = None
-        config["Train"]["dataset"]["data_dir"] = data_dir
-        config["Train"]["dataset"]["label_file_list"] = sum([labelset["label"]["train"] for labelset in labelsets], [])
-        config["Eval"]["dataset"]["data_dir"] = data_dir
-        config["Eval"]["dataset"]["label_file_list"] = sum([labelset["label"]["eval"] for labelset in labelsets], [])
+
+        train_config["Global"]["pretrained_model"]=model
+        train_config["Global"]["print_batch_step"]=1
+        train_config["Global"]["save_epoch_step"]=1
+        train_config["Global"]["eval_batch_step"]=[0, 2000]
+        train_config["Global"]["save_model_dir"] = f"{self.root}/{name}/trained_model"
+        train_config["Global"]["save_inference_dir"] = f"{self.root}/{name}/trained_model"
+        train_config["Global"]["save_res_path"] = None
+        train_config["Train"]["dataset"]["data_dir"] = data_dir
+        train_config["Train"]["dataset"]["label_file_list"] = sum([labelset["label"]["train"] for labelset in labelsets], [])
+        train_config["Eval"]["dataset"]["data_dir"] = data_dir
+        train_config["Eval"]["dataset"]["label_file_list"] = sum([labelset["label"]["eval"] for labelset in labelsets], [])
         # config["Test"] = copy.deepcopy(config["Eval"])        
         # config["Test"]["dataset"]["data_dir"] = data_dir
         # config["Test"]["dataset"]["label_file_list"] = [str(x) for x in labelset["label"]["test"]]
@@ -51,8 +60,11 @@ class WorkDB(DB):
 
         dir_path = Path(self.root)/name
         dir_path.mkdir(parents = True, exist_ok=True)
-        with open(dir_path/WorkDB.CONFIG_NAME, "w") as f:
+        with open(dir_path/self.CONFIG_NAME, "w") as f:
+            
             yaml.dump(config, f)
+        with open(dir_path/"train_config.yml", "w") as f:
+            yaml.dump(train_config, f)
              
     def make_inference_model(self, id, epoch=None):
         #None epoch means best model
@@ -86,13 +98,14 @@ class WorkDB(DB):
             
             
     def train(self, id, epoch):
-        code = str(Path(project.PROJECT_ROOT)/"code/PaddleOCR/tools/train.py")
+        code = f"{project.PROJECT_ROOT}/code/PaddleOCR/tools/train.py"
         config = self.get_config(id)
-        config = str(Path(project.PROJECT_ROOT)/self.DIR/config["DB"]["name"]/self.CONFIG_NAME)
+        train_config = config["train_config"]        
         
-        return f"python {code} -c {config} -o Global.epoch_num={epoch}"
-                
+        command = f"python {code} -c {train_config} -o Global.epoch_num={epoch}"
         
+        with open(f"{project.PROJECT_ROOT}/works/train.sh", "a") as f:
+            f.write(command+"\n")        
     
 if __name__ == "__main__":
     mdb = WorkDB()

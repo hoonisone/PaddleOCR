@@ -1,1 +1,1 @@
-PROJECT_ROOT = "E:/workspace/paddleocr"
+PROJECT_ROOT = "."

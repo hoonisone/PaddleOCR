@@ -27,7 +27,7 @@ class ConfigLoader:
 class YamlConfigLoader(ConfigLoader):
     @staticmethod
     def load_config(config_path):
-        with open(config_path) as f:
+        with open(config_path, encoding='utf-8') as f:
             config = dotdict.dotdict(yaml.load(f,  Loader=yaml.FullLoader))
             YamlConfigLoader.check_all(config)
             return config    

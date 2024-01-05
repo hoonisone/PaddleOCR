@@ -28,8 +28,7 @@ def to_paddle_y(y):
     return json.dumps(result)
 import project
 def main(args):
-    dataset_dir = Path(project.PROJECT_ROOT)/"datasets/korean_image_det"
-    
+    dataset_dir = Path(project.PROJECT_ROOT)/"datasets/ai_hub_korean_det"
     n=5
     print(f"(1/{n}) Check data dir")#######################################################
     dataset = HangulRealImageDataset().get_box_detection_dataset()
@@ -38,6 +37,7 @@ def main(args):
     print(len(dataset))
     label_list = []
     for i in range(len(dataset)):
+        print(i)
         label = dataset.get_y(i)
         relative_path = dataset.get_x_path(i).relative_to(dataset_dir)
         
@@ -46,7 +46,7 @@ def main(args):
         paddle_label = f"{relative_path}\t{label}"
         label_list.append(paddle_label)
         
-    open(dataset_dir/"label2.txt","w").write("\n".join(label_list))
+    open(dataset_dir/"label3.txt","w").write("\n".join(label_list))
     
     
     # print(f"(3/{n}) split label file (train, val, test, infer)")#######################################################
@@ -83,7 +83,7 @@ def main(args):
 
 
 
-DEFALT_CONFIG_PATH = "/home/code/dataset/paddleOCR/config.yml"
+DEFALT_CONFIG_PATH = "./code/dataset/aihub/hangul_real_image_dataset/config.yml"
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("-c", "--config_path", type=str, default=DEFALT_CONFIG_PATH)

@@ -22,13 +22,16 @@ class DB:
     def get_path(self, id):
         return str(Path(self.root)/id/self.config_name)
     
-    def get_config(self, id):
+    def get_config(self, id, abs_path=True):
         path = self.get_path(id)
         with open(path) as f:
             config = yaml.load(f, Loader=yaml.FullLoader)
         if config == None:
             config = {}
-        config["name"] = id
+        config["id"] = id
+        if abs_path:
+            config = self.replace(config, "{ROOT}", self.root)
+            config = self.replace(config, "{ID}", id)
         return config
     
     def update_config(self, id, config):
@@ -39,11 +42,11 @@ class DB:
     def get_root(self):
         return self.root
 
-    def insert_root(self, config):
-        # config 안에 문자열 중 "{root}" 가 있으면 이를 실제 root로 대체해줌
+    def replace(self, config, target , replace):
+        # config 안에 모든 값들에 대해 target을 replace로 대체해줌
         for k, v in config.items():
             if isinstance(v, str):
-                config[k] = v.replace("{root}", self.root)
+                config[k] = v.replace(target, replace)
             if isinstance(v, dict):
-                config[k] = self.insert_root(v)
+                config[k] = self.replace(v, target, replace)
         return config

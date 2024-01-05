@@ -1,4 +1,6 @@
-inference_model: ./models/korean_PP-OCRv3_rec/inference_model/inference
-inference_model_dir: ./models/korean_PP-OCRv3_rec/inference_model
-name: korean_PP-OCRv3_rec
-pretrained: pretrained_model
+inference_model: '{ROOT}/{ID}/inference_model/inference.pdmodel'
+inference_model_dir: '{ROOT}/{ID}/inference_model'
+inference_model_weight: '{ROOT}/{ID}/inference_model/inference.pdiparams'
+pretrained_model_dir: '{ROOT}/{ID}/pretrained_model'
+pretrained_model_weight: '{ROOT}/{ID}/pretrained_model/pretrained.pdparams'
+train_config: '{ROOT}/{ID}/pretrained_model/config.yml'

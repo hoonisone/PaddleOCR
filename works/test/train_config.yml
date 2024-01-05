@@ -16,7 +16,7 @@ Eval:
   dataset:
     data_dir: ./datasets
     label_file_list:
-    - labelsets/ai_hub_korean_image_det_16_04_80/eval_label.txt
+    - labelsets/aihub_det_only_sign/eval_label.txt
     name: SimpleDataSet
     transforms:
     - DecodeImage:
@@ -54,7 +54,7 @@ Eval:
 Global:
   cal_metric_during_train: false
   checkpoints: null
-  epoch_num: 10
+  epoch_num: 50
   eval_batch_step:
   - 0
   - 2000
@@ -102,7 +102,7 @@ Train:
   dataset:
     data_dir: ./datasets
     label_file_list:
-    - labelsets/ai_hub_korean_image_det_16_04_80/train_label.txt
+    - labelsets/aihub_det_only_sign/train_label.txt
     name: SimpleDataSet
     ratio_list:
     - 1.0
@@ -164,4 +164,3 @@ Train:
     num_workers: 4
     shuffle: true
     use_shared_memory: false
-profiler_options: null
