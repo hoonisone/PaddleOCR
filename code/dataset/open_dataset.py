@@ -116,8 +116,3 @@ class BoxDetectionDataset(OpenDatasetDecorator):
         min_max_xy_bboxes = [[x, y, x+w, y+h]for x, y, w, h in xywh_bboxes]
         x = bbv.draw_multiple_rectangles(x, min_max_xy_bboxes, thickness=2, bbox_color=(0,0,0))
         self.show_x(x)
-        
-
-        
-    
-    

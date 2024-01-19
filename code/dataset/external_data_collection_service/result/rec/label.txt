@@ -1,0 +1,29 @@
+result\rec\1\1.png	나주곰탕 주차장
+result\rec\1\1.png	T.374-8088
+result\rec\1\2.png	당신의 봄
+result\rec\1\2.png	의원
+result\rec\1\2.png	2F
+result\rec\1\2.png	P
+result\rec\1\2.png	주차장
+result\rec\1\3.png	계계속속
+result\rec\1\4.png	노다지
+result\rec\1\4.png	음악홀
+result\rec\1\5.png	제주
+result\rec\1\5.png	첨단맛집
+result\rec\1\5.png	포크
+result\rec\1\5.png	제주포크
+result\rec\1\5.png	제주오겹살
+result\rec\1\5.png	암돼지삽겹살
+result\rec\1\5.png	돼지특수부위 모듬
+result\rec\1\5.png	973-5628
+result\rec\1\5.png	SINCE 2000
+result\rec\1\6.png	정통
+result\rec\1\6.png	해솔식육식당
+result\rec\1\6.png	해솔인
+result\rec\1\7.png	KB 국민은행
+result\rec\1\8.png	DAKS
+result\rec\1\9.png	Mi
+result\rec\1\9.png	a
+result\rec\1\9.png	air
+result\rec\1\10.png	GRIDA_SU
+result\rec\1\10.png	그리다_수
