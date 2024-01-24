@@ -1,5 +1,0 @@
-task: 
-  - STD
-labelfiles:
-  - label1.txt
-options: [] # ex) which augmented?

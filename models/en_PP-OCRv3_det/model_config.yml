@@ -1,6 +1,0 @@
-inference_model: '{ROOT}/{ID}/inference_model/Student/inference.pdmodel'
-inference_model_dir: '{ROOT}/{ID}/inference_model/Student'
-inference_model_weight: '{ROOT}/{ID}/inference_model/Student/inference.pdiparams'
-pretrained_model_dir: '{ROOT}/{ID}/pretrained_model'
-pretrained_model_weight: '{ROOT}/{ID}/pretrained_model/pretrained.pdparams'
-train_config: '{ROOT}/{ID}/pretrained_model/config.yml'

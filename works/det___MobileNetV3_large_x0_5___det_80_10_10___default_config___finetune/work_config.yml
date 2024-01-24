@@ -1,3 +1,0 @@
-inference_model: ./works/det___MobileNetV3_large_x0_5___det_80_10_10___default_config___finetune/inference_model/best/inference
-inference_model_dir: ./works/det___MobileNetV3_large_x0_5___det_80_10_10___default_config___finetune/inference_model/best
-name: det___MobileNetV3_large_x0_5___det_80_10_10___default_config___finetune

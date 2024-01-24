@@ -1,6 +1,0 @@
-id: test
-labelsets:
-- aihub_det_only_sign
-model: MobileNetV3_large_x0_5
-pretrained: true
-train_config: ./works/test/train_config.yml
