@@ -1,4 +1,6 @@
-models/*
-works/*
 datasets/*
+inference/*
+labelsets/*
+models/*
 origin_datasets/*
+works/*
