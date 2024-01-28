@@ -24,7 +24,7 @@ class WorkDB(DB):
         train_config = model_config["train_config"]
         
         config = {
-            "train_config":f"{self.ROOT}/{name}/train_config.yml",
+            "train_config":f"{self.ROOT}/{name}/train_config.yml".replace("\\", "/"),
             "id":name,
             "labelsets":labelsets,
             "model":model,
