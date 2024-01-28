@@ -1,6 +1,6 @@
 
 from pathlib import Path
-from dataset.open_dataset import *
+from dataset import *
 import json
 from pathlib import Path
 from PIL import Image

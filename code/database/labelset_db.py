@@ -5,6 +5,18 @@ from .dataset_db import DatasetDB
 from .db import DB
 import project
 
+def split_list(data, ratio):
+    total_num = len(data)
+    total_ratio = sum(ratio)
+    num_list = [int(total_num*(r/total_ratio)) for r in ratio]
+    result = []
+    acc = 0
+    for num in num_list[:-1]:
+        result.append(data[acc:acc+num])
+        acc += num
+    result.append(data[acc:])
+    return result
+    
 class LabelsetDB(DB):
     DIR = "labelsets"
     ROOT = f"{project.PROJECT_ROOT}/{DIR}"
@@ -13,58 +25,76 @@ class LabelsetDB(DB):
     TRAIN_LABEL_FILE = "train_label.txt"
     EVAL_LABEL_FILE = "eval_label.txt"
     TEST_LABEL_FILE = "test_label.txt"
-    INFER_LABEL_FILE = "infer_label.txt"
+    TRAIN_INFER_FILE = "train_infer.txt"
+    EVAL_INFER_FILE = "eval_infer.txt"
+    TEST_INFER_FILE = "test_infer.txt"
     
     def __init__(self):
         super().__init__(LabelsetDB.ROOT, LabelsetDB.CONFIG_NAME)
     
-    
-    def make(self, name, datasets, split_ratio, random_seed=100):
+    def make(self, name, datasets, split_ratio=[8, 1, 1], individual_split_ratio={}, shuffle=True, random_seed=100):
+        """_summary_
+            make label set from the datasets with split_ratio option
+        Args:
+            name (_type_): _description_
+            datasets (_type_): split_ratio와 함께 쓰이며, 사용할 전체 데이터 셋을 명시 ["dataset1", "dataset2", ...]
+            split_ratio (_type_): 전체 데이터 셋을 [train, val, test]로 나눌 비율 [8, 1, 1]
+            individual_split_ratio (_dict_): split_ratio에 세부적으로 특정 데이터 셋에 대해 split_ratio 지정 가능 {"dataset":[8, 1, 1], ...}
+            shuffle (bool): whether suffle the dataset before spliting
+            random_seed (int, optional): split 수행 시 사용할 random seed. Defaults to 100.
+            
+        """
+        # datasets에 원하는 데이터 셋 id를 모두 나열 하고 split_ratio를 지정하면 전체를 해당 비율로 나누어 레이블 셋 구성
+        # 
+        
         assert name not in self.get_all_id(), f"The name '{name}' already exists!"
         
-        random.seed(random_seed)
-        datasetDB = DatasetDB()
+        assert split_ratio or individual_split_ratio, f"input datasets or individual_split_ratio"
         
-        labels = sum([datasetDB.get_all_labels(id) for id in datasets], [])
-        random.shuffle(labels)
-
-        # 전체 레이블을 나누어 레이블 파일로 저장
-        print("2. split and save label files")
-
-        train_ratio, eval_ratio, test_ratio = split_ratio
-        total = sum(split_ratio)
-        train_n = int(train_ratio/total*len(labels))
-        eval_n = int(eval_ratio/total*len(labels))
-        test_n = int(test_ratio/total*len(labels))
-
-        train_labels = labels[:train_n]
-        val_labels = labels[train_n:-test_n]
-        test_labels = labels[-test_n:]
-        infer_list = [label.split("\t")[0] for label in test_labels]
-
+        # 데이터 셋에 대한 train, val, test 레이블 셋 구성
+        datasetDB = DatasetDB()
+        random.seed(random_seed)        
+        
+        # 각 데이터 셋 마다 split ratio 계산
+        split_ratio = {dataset:split_ratio for dataset in datasets}
+        split_ratio.update(individual_split_ratio)
+        
+        labelsets = [[], [], []] # 전체 레이블 셋 [train, val, test]
+        for dataset in datasets:
+            labels = datasetDB.get_all_labels(dataset)
+            random.shuffle(labels) if shuffle else ""
+            for whole, patial in zip(labelsets, split_list(labels, split_ratio[dataset])): # dataset을 지정된 비율에 따라 [train, val, test]로 split 한 뒤 더함 
+                whole+=patial
+                 
+        print("2. save label files")
+        train_labels, val_labels, test_labels = labelsets
         root = Path(self.root)
         (root/name).mkdir(parents=True, exist_ok=True)
-        print(root/name)
-        
-        
         open(root/name/LabelsetDB.TRAIN_LABEL_FILE, "w").write("\n".join(train_labels))
         open(root/name/LabelsetDB.EVAL_LABEL_FILE, "w").write("\n".join(val_labels))
         open(root/name/LabelsetDB.TEST_LABEL_FILE, "w").write("\n".join(test_labels))
-        open(root/name/LabelsetDB.INFER_LABEL_FILE, "w").write("\n".join(infer_list))
+        
+        # 전체 레이블을 나누어 레이블 파일로 저장
+        print("3. make infer label files")
+        train_infer = [label.split("\t")[0] for label in train_labels]
+        val_infer = [label.split("\t")[0] for label in val_labels]
+        test_infer = [label.split("\t")[0] for label in test_labels]
+        open(root/name/LabelsetDB.TRAIN_INFER_FILE, "w").write("\n".join(train_infer))
+        open(root/name/LabelsetDB.EVAL_INFER_FILE, "w").write("\n".join(val_infer))
+        open(root/name/LabelsetDB.TEST_INFER_FILE, "w").write("\n".join(test_infer))
             
         # config 생성 및 저장
         config = {}
-        config["datasets"]=datasets
-        config["split"] = {
-            "train_ratio":train_ratio,
-            "eval_ratio":eval_ratio,
-            "test_ratio":test_ratio  
-        }
+        config["datasets"]=split_ratio
         config["label"]={
             "train":[LabelsetDB.TRAIN_LABEL_FILE],
             "eval":[LabelsetDB.EVAL_LABEL_FILE],
             "test":[LabelsetDB.TEST_LABEL_FILE],
-            "infer":[LabelsetDB.INFER_LABEL_FILE]
+        }
+        config["infer"]={
+            "train":[LabelsetDB.TRAIN_INFER_FILE],
+            "eval":[LabelsetDB.EVAL_INFER_FILE],
+            "test":[LabelsetDB.TEST_INFER_FILE],
         }
         config["seed"] = random_seed
         config["dataset_dir"] = "./datasets"
@@ -74,16 +104,17 @@ class LabelsetDB(DB):
     
     def get_config(self, id):
         config = super().get_config(id)
-        for work in ["train", "eval", "test", "infer"]:
-            if config["label"][work]:
-                config["label"][work] = [f"{self.DIR}/{config['id']}/{label}" for label in config['label'][work]] # 절대 경로로 변환
-                # config["label"][work] = [str((Path(self.ROOT)/config['id']/label).relative_to(project.PROJECT_ROOT)) for label in config['label'][work]] # 절대 경로로 변환
+        for category in ["label", "infer"]:
+            for work in ["train", "eval", "test"]:
+                if config[category][work]:
+                    config[category][work] = [f"{self.DIR}/{config['id']}/{label}" for label in config['label'][work]] # 절대 경로로 변환
+                    # config["label"][work] = [str((Path(self.ROOT)/config['id']/label).relative_to(project.PROJECT_ROOT)) for label in config['label'][work]] # 절대 경로로 변환
                 
-            elif config["origin_labelset"]:
-                labels = []
-                for origin_labelset in config["origin_labelset"]:
-                     labels += self.get_config(origin_labelset)["label"][work]                 
-                config["label"][work] = labels
+                elif config["origin_labelset"]:
+                    labels = []
+                    for origin_labelset in config["origin_labelset"]:
+                        labels += self.get_config(origin_labelset)["label"][work]                 
+                    config[category][work] = labels
         return config
         
     def make_k_fold(self, labelsets, name, k, random_seed=100):
@@ -122,6 +153,12 @@ class LabelsetDB(DB):
             new_label_dir.mkdir(parents=True, exist_ok=True)
             open(new_label_dir/LabelsetDB.TRAIN_LABEL_FILE, "w").write("\n".join(train))
             open(new_label_dir/LabelsetDB.EVAL_LABEL_FILE, "w").write("\n".join(val))
+            
+            train_infer = [label.split("\t")[0] for label in train]
+            val_infer = [label.split("\t")[0] for label in val]
+            open(new_label_dir/LabelsetDB.TRAIN_INFER_FILE, "w").write("\n".join(train_infer))
+            open(new_label_dir/LabelsetDB.EVAL_INFER_FILE, "w").write("\n".join(val_infer))
+            
             config = {}
             config["name"] = new_name
             config["origin_labelset"] = labelsets
@@ -130,166 +167,15 @@ class LabelsetDB(DB):
                 "train":[LabelsetDB.TRAIN_LABEL_FILE],
                 "eval":[LabelsetDB.EVAL_LABEL_FILE],
                 "test":[],
-                "infer":[]
+            }
+            config["infer"]={
+                "train":[LabelsetDB.TRAIN_INFER_FILE],
+                "eval":[LabelsetDB.EVAL_INFER_FILE],
+                "test":[],
             }
             config["seed"] = random_seed
             with open(new_label_dir/LabelsetDB.CONFIG_NAME, "w") as f:
                 yaml.dump(config, f)
-
-# class LabelsetDB2:
-#     ROOT = Path("/home/labelsets")
-#     CONFIG_FILE = "config.yml"
-#     TRAIN_LABEL_FILE = "train_label.txt"
-#     EVAL_LABEL_FILE = "eval_label.txt"
-#     TEST_LABEL_FILE = "test_label.txt"
-#     INFER_LABEL_FILE = "infer_label.txt"
-    
-#     def __init__(self, root=None):
-#         self.root = root if root else LabelsetDB2.ROOT
-#         self.name_path = LabelsetDB2.get_name_path_list(self.root)        
-
-#     @staticmethod    
-#     def get_path_list(root):
-#         path_list = root.glob("*")
-
-#         element_list = []
-#         for path in path_list:
-#             if LabelsetDB2.is_target(path):
-#                 element_list.append(path)
-#             if path.is_dir():
-#                 element_list += DatasetDB.get_path_list(path)
-#             else:
-#                 pass
-#         return element_list
-            
-#     @staticmethod
-#     def get_name_path_list(root):  
-#         name_path = {}
-#         for path in DatasetDB.get_path_list(root):
-#             with open(str(path/LabelsetDB2.CONFIG_FILE)) as f:
-#                 config = yaml.load(f, Loader=yaml.FullLoader)
-
-#             for work in ["train", "eval", "test", "infer"]:                
-#                 if config["label"][work]:
-#                     config["label"][work] = [path/x for x in config["label"][work]]
-            
-#             key = config["name"]
-#             value = config
-#             name_path[key] = value
-        
-#         return name_path
-            
-#     @staticmethod
-#     def is_target(path):
-#         path_list = path.glob("*")
-#         return any([path.name == LabelsetDB2.CONFIG_FILE for path in path_list])
-    
-#     def get_name_list(self):
-#         return list(self.name_path.keys())
-    
-#     def get(self, name):
-#         config = self.name_path[name]
-#         for work in ["train", "eval", "test", "infer"]:
-#             if (not config["label"][work]) and config["origin_labelset"]:
-#                 config["label"][work] = self.get(config["origin_labelset"])["label"][work]                    
-#         return config
-    
-#     def make(self, name, datasets, train_ratio, eval_ratio, test_ratio, random_seed=100):
-#         assert name not in self.get_name_list(), f"The name '{name}' already exists!"
-        
-#         random.seed(random_seed)
-#         datasetDB = DatasetDB()
-#         label_file_path_list = sum([datasetDB.get_label_file_path(dataset) for dataset in datasets], [])
-
-#         label_list = []
-#         for label_file_path in label_file_path_list:
-#             labels = open(label_file_path).readlines()
-#             labels = [label.strip("\n").split("\t") for label in labels]
-#             labels = [f"{str((label_file_path.absolute().parent/path).relative_to(datasetDB.root))}\t{label}" for path, label in labels]
-#             label_list += labels
-#             random.shuffle(label_list)
-
-#         # 전체 레이블을 나누어 레이블 파일로 저장
-#         print("2. split and save label files")
-
-#         total = sum([train_ratio, eval_ratio, test_ratio])
-#         train_n = int(train_ratio/total*len(label_list))
-#         eval_n = int(eval_ratio/total*len(label_list))
-#         test_n = int(test_ratio/total*len(label_list))
-
-#         train_labels = label_list[:train_n]
-#         val_labels = label_list[train_n:-test_n]
-#         test_labels = label_list[-test_n:]
-#         infer_list = [label.split("\t")[0] for label in test_labels]
-
-#         (self.root/name).mkdir(parents=True, exist_ok=True)
-#         print(self.root/name)
-#         open(self.root/name/LabelsetDB2.TRAIN_LABEL_FILE, "w").write("\n".join(train_labels))
-#         open(self.root/name/LabelsetDB2.EVAL_LABEL_FILE, "w").write("\n".join(val_labels))
-#         open(self.root/name/LabelsetDB2.TEST_LABEL_FILE, "w").write("\n".join(test_labels))
-#         open(self.root/name/LabelsetDB2.INFER_LABEL_FILE, "w").write("\n".join(infer_list))
-            
-#         # config 생성 및 저장
-#         config = {}
-#         config["name"]=name
-#         config["datasets"]=datasets
-#         config["label_files"]=[str(path) for path in label_file_path_list]
-#         config["split"] = {
-#             "train_ratio":train_ratio,
-#             "eval_ratio":eval_ratio,
-#             "test_ratio":test_ratio  
-#         }
-#         config["label"]={
-#             "train":[LabelsetDB2.TRAIN_LABEL_FILE],
-#             "eval":[LabelsetDB2.EVAL_LABEL_FILE],
-#             "test":[LabelsetDB2.TEST_LABEL_FILE],
-#             "infer":[LabelsetDB2.INFER_LABEL_FILE]
-#         }
-#         config["seed"] = random_seed
-#         with open(self.root/name/LabelsetDB2.CONFIG_FILE, "w") as f:
-#                 yaml.dump(config, f)   
-                
-                
-#     def make_k_fold(self, dataset, name, k, random_seed=100):
-#         assert dataset in self.get_name_list(), f"The dataset {dataset} does not exists!"
-#         label_root = Path("/home/dataset_labels")
-
-#         print("1. Load all label files")
-#         labelset = self.get(dataset)
-#         label_files = labelset["label"]["train"] + labelset["label"]["eval"]
-        
-#         labels = sum([[line.strip("\n") for line in open(label_file).readlines()] for label_file in label_files], [])
-
-#         # 전체 레이블을 나누어 레이블 파일로 저장
-#         print("2. split labels in k segments")
-#         segments = []
-#         s_size = int(len(labels)/k) # segment_size
-#         for i in range(k-1):
-#             segments.append(labels[s_size*i:s_size*(i+1)])
-#         segments.append(labels[s_size*(k-1):])
-        
-#         print("3. save")
-#         for i in range(k):
-#             train = sum([[] if i==j else segment for j, segment in enumerate(segments)], [])
-#             val = segments[i]
-#             new_name = f"{name}_{k}_{i+1}"
-#             new_label_dir = self.root/new_name
-#             new_label_dir.mkdir(parents=True, exist_ok=True)
-#             open(new_label_dir/LabelsetDB2.TRAIN_LABEL_FILE, "w").write("\n".join(train))
-#             open(new_label_dir/LabelsetDB2.EVAL_LABEL_FILE, "w").write("\n".join(val))
-#             config = {}
-#             config["name"] = new_name
-#             config["origin_labelset"] = labelset['name']
-#             config["k_fold"] = {"k":k, "i":i+1}
-#             config["label"]={
-#                 "train":[LabelsetDB2.TRAIN_LABEL_FILE],
-#                 "eval":[LabelsetDB2.EVAL_LABEL_FILE],
-#                 "test":[],
-#                 "infer":[]
-#             }
-#             config["seed"] = random_seed
-#             with open(new_label_dir/LabelsetDB2.CONFIG_FILE, "w") as f:
-#                 yaml.dump(config, f)
 
 if __name__=="__main__":
     labeldb = LabelsetDB()

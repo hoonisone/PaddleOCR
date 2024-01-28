@@ -1,1 +1,0 @@
-sssresult\0.png	json.dumps(text_labels)result\0.png	json.dumps(text_labels)result\1.png	json.dumps(text_labels)result\2.png	json.dumps(text_labels)result\2.png	json.dumps(text_labels)result\3.png	json.dumps(text_labels)result\4.png	json.dumps(text_labels)result\5.png	json.dumps(text_labels)result\6.png	json.dumps(text_labels)result\6.png	json.dumps(text_labels)

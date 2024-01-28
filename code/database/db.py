@@ -23,6 +23,7 @@ class DB:
         return str(Path(self.root)/id/self.config_name)
     
     def get_config(self, id, abs_path=True):
+        
         path = self.get_path(id)
         with open(path) as f:
             config = yaml.load(f, Loader=yaml.FullLoader)

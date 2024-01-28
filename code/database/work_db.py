@@ -6,7 +6,7 @@ from .model_db import ModelDB
 from .db import DB
 import copy
 import project
-
+import pandas as pd
 class WorkDB(DB):
     DIR = "works"
     ROOT = f"{project.PROJECT_ROOT}/{DIR}"
@@ -18,6 +18,7 @@ class WorkDB(DB):
 
 
     def make(self, name, labelsets, model, pretrained=True):
+        assert name not in self.get_all_id(), f"the word '{name}' already exist!"
         modeldb = ModelDB()
         model_config = modeldb.get_config(model)
         train_config = model_config["train_config"]
@@ -27,7 +28,9 @@ class WorkDB(DB):
             "id":name,
             "labelsets":labelsets,
             "model":model,
-            "pretrained":pretrained
+            "pretrained":pretrained,
+            "result_path": "{ROOT}/{ID}/result.csv",
+            "model_weight_dir": "{ROOT}/{ID}/trained_model/"
         }
         
         with open(str(Path(project.PROJECT_ROOT)/train_config)) as f:
@@ -48,7 +51,7 @@ class WorkDB(DB):
         train_config["Global"]["eval_batch_step"]=[0, 2000]
         train_config["Global"]["save_model_dir"] = f"{self.root}/{name}/trained_model"
         train_config["Global"]["save_inference_dir"] = f"{self.root}/{name}/trained_model"
-        train_config["Global"]["save_res_path"] = None
+        train_config["Global"]["save_res_path"] = f"{self.root}/{name}/infer"
         train_config["Train"]["dataset"]["data_dir"] = data_dir
         train_config["Train"]["dataset"]["label_file_list"] = sum([labelset["label"]["train"] for labelset in labelsets], [])
         train_config["Eval"]["dataset"]["data_dir"] = data_dir
@@ -60,8 +63,8 @@ class WorkDB(DB):
 
         dir_path = Path(self.root)/name
         dir_path.mkdir(parents = True, exist_ok=True)
+        
         with open(dir_path/self.CONFIG_NAME, "w") as f:
-            
             yaml.dump(config, f)
         with open(dir_path/"train_config.yml", "w") as f:
             yaml.dump(train_config, f)
@@ -96,17 +99,91 @@ class WorkDB(DB):
         
         print(f"{str(path)}")
             
-            
     def train(self, id, epoch):
         code = f"{project.PROJECT_ROOT}/code/PaddleOCR/tools/train.py"
+        
+        self.update(id)
         config = self.get_config(id)
         train_config = config["train_config"]        
-        
-        command = f"python {code} -c {train_config} -o Global.epoch_num={epoch}"
+        model = self.get_model_weight(id, "latest")
+        command = f"python {code} -c {train_config} -o Global.epoch_num={epoch} Global.pretrained_model={model}"
         
         with open(f"{project.PROJECT_ROOT}/works/train.sh", "a") as f:
             f.write(command+"\n")        
     
+    @staticmethod
+    def report_eval(id, epoch, step, acc, loss, precision, recall):
+        result_path = WorkDB().get_config(id)["result_path"]
+        if Path(result_path).exists():
+            df= pd.read_csv(result_path)
+        else:
+            df = pd.DataFrame({"epoch":[], "step":[], "acc":[], "loss":[], "precision":[], "recall":[]})    
+        
+        df._append({"epoch":epoch, "step":step, "acc":acc, "loss":loss, "precision":precision, "recall":recall})
+        df.to_csv(result_path)
+        pd.DataFrame()
+    
+    def update(self, id):
+        config = super().get_config(id)
+        config["trained_epoch"] = self.get_trained_epoch(id)   
+        self.update_config(id, config)
+        
+    def get_trained_epoch(self, id):
+        return len(list(Path(self.get_config(id)["model_weight_dir"]).glob("iter_epoch_*.pdparams")))
+    
+    
+    
+    # def get_best_model_weight(self, id):
+    #     config = self.get_config(id)
+    #     if self.get_trained_epoch(id) == 0:
+    #         model = config["model"]
+    #         pretrained = config["pretrained"]
+    #         return str(ModelDB().get_config(model)["pretrained_model_weight"]) if pretrained else ""
+    #     else:
+    #         return str(Path(self.ROOT)/id/"trained_model"/"best_model/model").replace("\\", "/")          
+    
+    def get_model_weight(self, id, epoch):
+        config = self.get_config(id)
+        trained_epoch = self.get_trained_epoch(id)
+        if trained_epoch == 0:
+            model = config["model"]
+            pretrained = config["pretrained"]
+            return str(ModelDB().get_config(model)["pretrained_model_weight"]) if pretrained else ""
+        
+        elif epoch == "best":
+            return str(Path(self.ROOT)/id/"trained_model"/"best_model/model").replace("\\", "/") 
+        
+        elif epoch == "latest":
+            return str(Path(self.ROOT)/id/"trained_model"/"latest").replace("\\", "/") 
+        
+        elif trained_epoch < epoch:
+            return None
+        
+        return str(Path(self.ROOT)/id/"trained_model"/f"iter_epoch_{epoch}").replace("\\", "/")
+    
+    def eval(self, id, epoch, dataset="eval"):
+        code = f"{project.PROJECT_ROOT}/code/PaddleOCR/tools/train.py" 
+        config = self.get_config(id)
+        train_config = config["train_config"]  
+        model_weight = self.get_model_weight(id, epoch)
+        command = f"python {code} -c {train_config} -o Global.pretrained_model={model_weight}" # train에 대해서도 할 수 있게 수정해야 함
+        with open(f"{project.PROJECT_ROOT}/works/train.sh", "a") as f:
+            f.write(command+"\n")
+            
+    def infer_det(self, id, epoch = "best", dataset="test"):
+        code = f"{project.PROJECT_ROOT}/code/PaddleOCR/tools/infer_det.py"
+        config = self.get_config(id)
+        train_config = config["train_config"]  
+        model_weight = self.get_model_weight(id, epoch)
+    
+        data_dir = LabelsetDB().get_config(config["labelsets"][0])["dataset_dir"]
+        labelsets = sum([LabelsetDB().get_config(labelset)["label"]["infer"] for labelset in config["labelsets"]], [])
+        
+        command = f"python {code} -c {train_config} -o Global.pretrained_model={model_weight} Infer.data_dir={data_dir} Infer.infer_file_list={labelsets}" # train에 대해서도 할 수 있게 수정해야 함
+        with open(f"{project.PROJECT_ROOT}/works/infer.sh", "a") as f:
+            f.write(command+"\n") 
+    
+        
 if __name__ == "__main__":
     mdb = WorkDB()
     

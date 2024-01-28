@@ -78,6 +78,7 @@ def main():
     ops = create_operators(transforms, global_config)
 
     save_res_path = config['Global']['save_res_path']
+
     if not os.path.exists(os.path.dirname(save_res_path)):
         os.makedirs(os.path.dirname(save_res_path))
 
