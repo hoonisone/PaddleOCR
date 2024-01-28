@@ -197,7 +197,7 @@ Train:
   loader:
     shuffle: true
     drop_last: false
-    batch_size_per_card: 32
+    batch_size_per_card: 16
     num_workers: 8
 
 Eval:
