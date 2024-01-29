@@ -50,8 +50,12 @@ class LabelsetDB(DB):
         
         assert split_ratio or individual_split_ratio, f"input datasets or individual_split_ratio"
         
+        
+        
         # 데이터 셋에 대한 train, val, test 레이블 셋 구성
         datasetDB = DatasetDB()
+        assert len(set(sum([datasetDB.get_config(id)["task"] for id in datasets], []))) == 1  ##### 미완성
+        
         random.seed(random_seed)        
         
         # 각 데이터 셋 마다 split ratio 계산
@@ -85,6 +89,7 @@ class LabelsetDB(DB):
         # config 생성 및 저장
         config = {}
         config["datasets"]=split_ratio
+        config["task"] = set(sum([datasetDB.get_config(id)["task"] for id in datasets], [])) ##### 미완성
         config["label"]={
             "train":[LabelsetDB.TRAIN_LABEL_FILE],
             "eval":[LabelsetDB.EVAL_LABEL_FILE],

@@ -14,7 +14,7 @@ class DB:
 
         
     def get_all_id(self):
-        path_list = Path(self.dir).glob("*")
+        path_list = (Path(project.PROJECT_ROOT)/self.dir).glob("*")
         element_list = []
         for path in path_list:
             if path.is_dir() and self.is_target(path):

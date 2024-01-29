@@ -6,6 +6,7 @@ from .model_db import ModelDB
 from .db import DB
 import copy
 import project
+from functools import reduce
 import pandas as pd
 class WorkDB(DB):
     DIR = "works"
@@ -14,8 +15,14 @@ class WorkDB(DB):
     def __init__(self):
         super().__init__(self.DIR, self.CONFIG_NAME)
         
-
-
+    def get_config(self, id, relative_to=None):
+        config = super().get_config(id)
+        
+        if relative_to:
+            for k in ["inference_result_dir", "trained_model_dir", "train_config", "result_path"]:
+                config[k] = self.relative_to(id, config[k], relative_to=relative_to)    
+        return config    
+    
     def make(self, name, labelsets, model):
         assert name not in self.get_all_id(), f"the work '{name}' already exist!"
         for labelset in labelsets:
@@ -23,10 +30,18 @@ class WorkDB(DB):
         assert model in ModelDB().get_all_id(), f"model '{model}' does not exist!"
         
         modeldb = ModelDB()
+        labeldb = LabelsetDB()
         model_config = modeldb.get_config(model, relative_to="absolute")
         train_config = model_config["train_config"]
         
+        model_task = set(model_config["task"])
+        labelset_task = [set(labeldb.get_config(id)["task"]) for id in labelsets]
+        task = list(reduce(lambda s1, s2: s1 & s2, labelset_task+[model_task]))
+        
+        assert 0 < len(task)
+
         config = {
+            "task":task,
             "train_config":f"train_config.yml".replace("\\", "/"),
             "labelsets":labelsets,
             "model":model,
@@ -98,17 +113,7 @@ class WorkDB(DB):
         
         print(f"{str(path)}")
             
-    def train(self, id, epoch):
-        code = f"{project.PROJECT_ROOT}/code/PaddleOCR/tools/train.py"
-        
-        self.update(id)
-        config = self.get_config(id)
-        train_config = config["train_config"]        
-        model = self.get_model_weight(id, "latest")
-        command = f"python {code} -c {train_config} -o Global.epoch_num={epoch} Global.pretrained_model={model}"
-        
-        with open(f"{project.PROJECT_ROOT}/works/train.sh", "a") as f:
-            f.write(command+"\n")        
+   
     
     @staticmethod
     def report_eval(id, epoch, step, acc, loss, precision, recall):
@@ -128,7 +133,7 @@ class WorkDB(DB):
     #     self.update_config(id, config)
         
     def get_trained_epoch(self, id):
-        return len(list(Path(self.get_config(id)["trained_model_dir"]).glob("iter_epoch_*.pdparams")))
+        return len(list(Path(self.get_config(id, relative_to="absolute")["trained_model_dir"]).glob("iter_epoch_*.pdparams")))
     
     
     
@@ -141,20 +146,20 @@ class WorkDB(DB):
     #     else:
     #         return str(Path(self.ROOT)/id/"trained_model"/"best_model/model").replace("\\", "/")          
     
-    def get_model_weight(self, id, epoch, relative_to=None):
+    def get_model_weight(self, id, version, relative_to=None):
         trained_epoch = self.get_trained_epoch(id)
-        assert (epoch in ["best", "latest", "pretrained"]) or (isinstance(epoch, int) and epoch <= trained_epoch), f"epoch should be 'best', 'latest', 'pretrained', or positive integer less than trained_epoch {trained_epoch} but {epoch} is given"
+        assert (version in ["best", "latest", "pretrained"]) or (isinstance(version, int) and version <= trained_epoch), f"version should be 'best', 'latest', 'pretrained', or positive integer less than trained_epoch {trained_epoch} but {version} is given"
         config = self.get_config(id)
         model_config = ModelDB().get_config(config["model"], relative_to=relative_to)
         
-        if (epoch in [0, "pretrained"]) or (trained_epoch == 0):
+        if (version in [0, "pretrained"]) or (trained_epoch == 0):
             return str(model_config["pretrained_model_weight"])
-        elif epoch == "best":
+        elif version == "best":
             return self.relative_to(id, Path(config["trained_model_dir"])/"best_model/model.pdparams", relative_to=relative_to)
-        elif epoch == "latest":
+        elif version == "latest":
             return self.relative_to(id, Path(config["trained_model_dir"])/"latest.pdparams", relative_to=relative_to)        
         else:
-            return self.relative_to(id, Path(config["trained_model_dir"])/f"iter_epoch_{epoch}.pdparams", relative_to=relative_to)
+            return self.relative_to(id, Path(config["trained_model_dir"])/f"iter_epoch_{version}.pdparams", relative_to=relative_to)
     
     # def eval(self, id, epoch, dataset="eval"):
     #     code = f"{project.PROJECT_ROOT}/code/PaddleOCR/tools/train.py" 
@@ -168,16 +173,73 @@ class WorkDB(DB):
     #     with open(f"{project.PROJECT_ROOT}/works/train.sh", "a") as f:
     #         f.write(command+"\n")
     
-    def infer(self, id, epoch = "best", dataset="test", relative_to="absoulte", save_to="global"):
+
+            
+            
+    def get_command_code(self, id, code, relative_to="project"):
+        assert code in ["train", "eval", "infer"], f"code should be 'train', 'eval', or 'infer' but {code} is given"
+        assert relative_to in ["absolute", "project"], f"relative_to should be 'absolute' or 'project' but {relative_to} is given"
+        if code == "train":
+            code = "code/PaddleOCR/tools/train.py"
+        elif code == "eval":
+            code = "code/PaddleOCR/tools/eval.py"
+        elif code == "infer":
+            task = self.get_config(id)["task"]
+            if "STD" in task:
+                code = "code/PaddleOCR/tools/infer_det.py"
+            elif "STR" in task:
+                code = "code/PaddleOCR/tools/infer_rec.py"
+            else:
+                None
+        else:
+            code = None
         
+        if relative_to == "absolute":
+            code = str(Path(self.PROJECT_ROOT)/code).replace('\\', '/')
+        elif relative_to == "project":
+            pass
+        return code
+        
+    def train(self, id, version, epoch, relative_to="project"):
+        assert relative_to in ["absolute", "project"], f"relative_to should be 'absolute' or 'project' but {relative_to} is given"
+        
+        code = self.get_command_code(id, "train", relative_to=relative_to)
+        config = self.get_config(id, relative_to="project")
+        labelset_configs = [LabelsetDB().get_config(id, relative_to="project") for id in config["labelsets"]]
+        
+        model_weight = self.get_model_weight(id, version, relative_to=relative_to)
+        model_weight = ".".join(model_weight.split(".")[:-1]) # 확장자 제거
+        
+        train_config = config["train_config"]        
+        options = {
+                   "Global.checkpoints":model_weight,
+                   "Global.epoch_num":epoch,
+                   "Global.save_model_dir":config["trained_model_dir"],
+                   
+                   "Train.dataset.data_dir": labelset_configs[0]["dataset_dir"],
+                   "Train.dataset.label_file_list":sum([c["label"]["train"] for c in labelset_configs], []),
+                   
+                   "Eval.dataset.data_dir": labelset_configs[0]["dataset_dir"],
+                   "Eval.dataset.label_file_list":sum([c["label"]["eval"] for c in labelset_configs], []),
+                   }
+        
+        command = f"python {code} -c {train_config} -o {' '.join([f'{k}={v}' for k, v in options.items()])}"
+        print(command)
+        
+        with open(f"{project.PROJECT_ROOT}/works/train.sh", "a") as f:
+            f.write(command+"\n")     
+
+    def infer(self, id, version = "best", dataset="test", relative_to="absoulte", save_to="global"):
         assert dataset in ["train", "eval", "test"]
         assert save_to in ["global", "local"]
         code = f"{project.PROJECT_ROOT}/code/PaddleOCR/tools/infer_det.py"
         config = self.get_config(id, relative_to=relative_to)
         
         ppocr_config = config["train_config"]  
-        model_weight = self.get_model_weight(id, epoch, relative_to=relative_to)
+        
+        model_weight = self.get_model_weight(id, version, relative_to=relative_to)
         model_weight = ".".join(model_weight.split(".")[:-1]) # 확장자 제거
+        
         labelset_ids = config["labelsets"]
         data_dir = LabelsetDB().get_config(labelset_ids[0], relative_to=relative_to)["dataset_dir"]
         labelsets = sum([LabelsetDB().get_config(id, relative_to=relative_to)["infer"][dataset] for id in labelset_ids], [])
@@ -186,14 +248,7 @@ class WorkDB(DB):
         print(command)
         with open(f"{project.PROJECT_ROOT}/works/infer.sh", "a") as f:
             f.write(command+"\n")
-    
-    def get_config(self, id, relative_to=None):
-        config = super().get_config(id)
-        
-        if relative_to:
-            for k in ["inference_result_dir", "trained_model_dir", "train_config", "result_path"]:
-                config[k] = self.relative_to(id, config[k], relative_to=relative_to)    
-        return config
+
         
 if __name__ == "__main__":
     mdb = WorkDB()
