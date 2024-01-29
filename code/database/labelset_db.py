@@ -19,7 +19,6 @@ def split_list(data, ratio):
     
 class LabelsetDB(DB):
     DIR = "labelsets"
-    ROOT = f"{project.PROJECT_ROOT}/{DIR}"
     CONFIG_NAME = "config.yml"
     
     TRAIN_LABEL_FILE = "train_label.txt"
@@ -30,7 +29,7 @@ class LabelsetDB(DB):
     TEST_INFER_FILE = "test_infer.txt"
     
     def __init__(self):
-        super().__init__(LabelsetDB.ROOT, LabelsetDB.CONFIG_NAME)
+        super().__init__(LabelsetDB.DIR, LabelsetDB.CONFIG_NAME)
     
     def make(self, name, datasets, split_ratio=[8, 1, 1], individual_split_ratio={}, shuffle=True, random_seed=100):
         """_summary_
@@ -61,27 +60,27 @@ class LabelsetDB(DB):
         
         labelsets = [[], [], []] # 전체 레이블 셋 [train, val, test]
         for dataset in datasets:
-            labels = datasetDB.get_all_labels(dataset)
+            labels = datasetDB.get_all_labels(dataset, relative_to="dir")
             random.shuffle(labels) if shuffle else ""
             for whole, patial in zip(labelsets, split_list(labels, split_ratio[dataset])): # dataset을 지정된 비율에 따라 [train, val, test]로 split 한 뒤 더함 
                 whole+=patial
                  
         print("2. save label files")
         train_labels, val_labels, test_labels = labelsets
-        root = Path(self.root)
-        (root/name).mkdir(parents=True, exist_ok=True)
-        open(root/name/LabelsetDB.TRAIN_LABEL_FILE, "w").write("\n".join(train_labels))
-        open(root/name/LabelsetDB.EVAL_LABEL_FILE, "w").write("\n".join(val_labels))
-        open(root/name/LabelsetDB.TEST_LABEL_FILE, "w").write("\n".join(test_labels))
+        save_dir = Path(self.PROJECT_ROOT)/self.DIR/name
+        (save_dir).mkdir(parents=True, exist_ok=True)
+        open(save_dir/LabelsetDB.TRAIN_LABEL_FILE, "w").write("\n".join(train_labels))
+        open(save_dir/LabelsetDB.EVAL_LABEL_FILE, "w").write("\n".join(val_labels))
+        open(save_dir/LabelsetDB.TEST_LABEL_FILE, "w").write("\n".join(test_labels))
         
         # 전체 레이블을 나누어 레이블 파일로 저장
         print("3. make infer label files")
         train_infer = [label.split("\t")[0] for label in train_labels]
         val_infer = [label.split("\t")[0] for label in val_labels]
         test_infer = [label.split("\t")[0] for label in test_labels]
-        open(root/name/LabelsetDB.TRAIN_INFER_FILE, "w").write("\n".join(train_infer))
-        open(root/name/LabelsetDB.EVAL_INFER_FILE, "w").write("\n".join(val_infer))
-        open(root/name/LabelsetDB.TEST_INFER_FILE, "w").write("\n".join(test_infer))
+        open(save_dir/LabelsetDB.TRAIN_INFER_FILE, "w").write("\n".join(train_infer))
+        open(save_dir/LabelsetDB.EVAL_INFER_FILE, "w").write("\n".join(val_infer))
+        open(save_dir/LabelsetDB.TEST_INFER_FILE, "w").write("\n".join(test_infer))
             
         # config 생성 및 저장
         config = {}
@@ -97,24 +96,19 @@ class LabelsetDB(DB):
             "test":[LabelsetDB.TEST_INFER_FILE],
         }
         config["seed"] = random_seed
-        config["dataset_dir"] = "./datasets"
-        with open(root/name/LabelsetDB.CONFIG_NAME, "w") as f:
+        config["dataset_dir"] = DatasetDB.DIR
+        with open(save_dir/LabelsetDB.CONFIG_NAME, "w") as f:
                 yaml.dump(config, f)   
         
     
-    def get_config(self, id):
+    def get_config(self, id, relative_to=None):
         config = super().get_config(id)
         for category in ["label", "infer"]:
             for work in ["train", "eval", "test"]:
-                if config[category][work]:
-                    config[category][work] = [f"{self.DIR}/{config['id']}/{label}" for label in config['label'][work]] # 절대 경로로 변환
-                    # config["label"][work] = [str((Path(self.ROOT)/config['id']/label).relative_to(project.PROJECT_ROOT)) for label in config['label'][work]] # 절대 경로로 변환
-                
-                elif config["origin_labelset"]:
-                    labels = []
-                    for origin_labelset in config["origin_labelset"]:
-                        labels += self.get_config(origin_labelset)["label"][work]                 
-                    config[category][work] = labels
+                if config[category][work] and relative_to: # 지정된 상대 경로로 변환
+                    config[category][work] = [self.relative_to(id, label, relative_to=relative_to) for label in config[category][work]]
+                elif "origin_labelset" in config:     # 없는 경우 origin_labelset에서 가져옴   
+                    config[category][work] = sum([self.get_config(origin_labelset, relative_to=relative_to)["label"][work] for origin_labelset in config["origin_labelset"]], [])
         return config
         
     def make_k_fold(self, labelsets, name, k, random_seed=100):

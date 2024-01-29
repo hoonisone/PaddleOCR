@@ -54,6 +54,18 @@ class ModelDB(DB):
         config = self.make_config(id)
         self.update_config(id, config)
         
+    def get_config(self, id, relative_to=None):
+        config = super().get_config(id)
+        
+        path_keys = ["inference_model", "inference_model_dir", "inference_model_weight",
+                     "pretrained_model_dir", "pretrained_model_weight", "train_config"]
+
+        if relative_to:
+            for k in path_keys:
+                config[k] = self.relative_to(id, config[k], relative_to=relative_to)
+        return config
+
+        
     def check_config(self, id):
         config = self.get_config(id)
 
