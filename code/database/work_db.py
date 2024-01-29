@@ -9,7 +9,7 @@ import project
 from functools import reduce
 import pandas as pd
 class WorkDB(DB):
-    DIR = "works"
+    DIR = "./works"
     CONFIG_NAME = "work_config.yml"
     
     def __init__(self):

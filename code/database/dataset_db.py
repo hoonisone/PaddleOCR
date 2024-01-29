@@ -4,7 +4,7 @@ from .db import DB
 
 class DatasetDB(DB):
     # 데이터 셋을 관리하는 DB
-    DIR = "datasets"
+    DIR = "./datasets"
     CONFIG_NAME = "dataset_config.yml"
     def __init__(self):
 

@@ -5,7 +5,7 @@ import os
 import subprocess
 
 class ModelDB(DB):    
-    DIR = "models"
+    DIR = "./models"
     ROOT = f"{project.PROJECT_ROOT}/{DIR}"
     CONFIG_NAME = "model_config.yml"
     

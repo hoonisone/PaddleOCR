@@ -18,7 +18,7 @@ def split_list(data, ratio):
     return result
     
 class LabelsetDB(DB):
-    DIR = "labelsets"
+    DIR = "./labelsets"
     CONFIG_NAME = "config.yml"
     
     TRAIN_LABEL_FILE = "train_label.txt"
