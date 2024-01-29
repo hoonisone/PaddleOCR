@@ -25,7 +25,7 @@ class DB:
         return len(list(path.glob(self.config_name))) == 1
         
     def get_path(self, id):
-        return str(Path(self.dir)/id/self.config_name)
+        return str(Path(self.PROJECT_ROOT)/self.dir/id/self.config_name).replace("\\", "/")
     
     def get_config(self, id):
         

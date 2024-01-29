@@ -18,7 +18,7 @@ from __future__ import print_function
 
 import os
 import sys
-
+from database import *
 
 __dir__ = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, __dir__)
@@ -146,23 +146,16 @@ def main():
     ###################################################### MH Modification Start
     import pandas as pd
     from pathlib import Path
-
-    result_dict = metric
-    result_dict["model_path"] = config["Global"]["pretrained_model"]
-    result_dict["label_path"] = str(config["Eval"]["dataset"]["label_file_list"])
-    path = Path(config["Global"]["test_save_path"])
-    path.parent.mkdir(parents=True, exist_ok=True)
     
-    for key, value in result_dict.items():
-        result_dict[key] = [value]
+    
+    id = config["Global"]["work_id"]
+    version = config["Global"]["version"]
+    dataset = config["Global"]["eval_dataset"]
+    x = metric
+    WorkDB.report_eval(id, version=version, dataset=dataset, step=None, acc=None, loss=None, precision=x["precision"], recall=x["recall"])    
 
-    df = pd.DataFrame(result_dict)
 
-    if path.exists():
-        origin_df = pd.read_csv(path)
-        df = pd.concat([origin_df, df])
-        
-    df.to_csv(path, index=False)
+    
     ###################################################### MH Modification End
 
 if __name__ == '__main__':
