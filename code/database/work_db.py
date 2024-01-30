@@ -123,7 +123,7 @@ class WorkDB(DB):
         if Path(report_path).exists():
             df= pd.read_csv(report_path, index_col=0)
         else:
-            df = pd.DataFrame({"version":[], "dataset":{}, "step":[], "acc":[], "loss":[], "precision":[], "recall":[]})  
+            df = pd.DataFrame({"version":[], "dataset":[], "step":[], "acc":[], "loss":[], "precision":[], "recall":[]})  
 
         
         new_df = pd.DataFrame({"version":[version], "dataset":[dataset], "step":[step], "acc":[acc], "loss":[loss], "precision":[precision], "recall":[recall]})
