@@ -63,7 +63,7 @@ class LabelsetDB(DB):
         split_ratio.update(individual_split_ratio)
         
         labelsets = [[], [], []] # 전체 레이블 셋 [train, val, test]
-        for dataset in datasets:
+        for dataset in split_ratio.keys():
             labels = datasetDB.get_all_labels(dataset, relative_to="dir")
             random.shuffle(labels) if shuffle else ""
             for whole, patial in zip(labelsets, split_list(labels, split_ratio[dataset])): # dataset을 지정된 비율에 따라 [train, val, test]로 split 한 뒤 더함 
