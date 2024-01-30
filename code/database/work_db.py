@@ -150,7 +150,7 @@ class WorkDB(DB):
 
     def get_report_value(self, id, version, task):
         df = self.get_report_df(id)
-        df = df[(df["version"]==version) & (df["task"]==task)]
+        df = df[(df["work_id"]==id) & (df["version"]==version) & (df["task"]==task)]
         if len(df) == 0:
             return None
         else:
@@ -177,6 +177,11 @@ class WorkDB(DB):
             return self.relative_to(id, Path(config["trained_model_dir"])/f"iter_epoch_{version}.pdparams", relative_to=relative_to)
     
     def eval(self, id, version, task, relative_to="project", command_to="global", report_to="local"):
+        item = self.get_report_value(id, version=version, task=task)
+        if not(isinstance(item, type(None)) or item.empty):
+            print(f"(id:{id}, version:{version}, task:{task}) already evaluated")
+            return 
+            
         code = self.get_command_code(id, "eval", relative_to=relative_to)
         
         config = self.get_config(id, relative_to="project")
