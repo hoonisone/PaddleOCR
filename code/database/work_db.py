@@ -129,9 +129,10 @@ class WorkDB(DB):
     def report_eval(self, id, report):
         # 기존 데이터 로드
         df = self.get_report_df(id)
-
+        
         # 데이터 추가
-        df = df.append(report, ignore_index=True)
+        new_df = pd.DataFrame([report])
+        df = pd.concat([df, new_df])
         
         # 저장
         self.save_report_df(id, df)
