@@ -153,7 +153,7 @@ def main():
     dataset = config["Global"]["eval_dataset"]
     x = metric
     WorkDB.report_eval(id, version=version, dataset=dataset, step=None, acc=None, loss=None, precision=x["precision"], recall=x["recall"])    
-
+    print("Report the eval result successfully")
 
     
     ###################################################### MH Modification End
