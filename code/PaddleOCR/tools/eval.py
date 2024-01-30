@@ -160,7 +160,7 @@ def main():
         
     ###################################################### MH Modification Start
     x = metric
-    workdb.report_eval(id, version=version, dataset=dataset, step=None, acc=None, loss=None, precision=x["precision"], recall=x["recall"])    
+    workdb.report_eval(id, version=version, dataset=dataset, step=None, acc=x.get("precision"), loss=x.get("loss"), precision=x.get("precision"), recall=x.get("recall"))    
     print("Report the eval result successfully")
 
     
