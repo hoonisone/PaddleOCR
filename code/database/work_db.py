@@ -120,26 +120,36 @@ class WorkDB(DB):
         if Path(report_path).exists():
             return pd.read_csv(report_path, index_col=0)
         else:
-            return pd.DataFrame({"version":[], "dataset":[], "step":[], "acc":[], "loss":[], "precision":[], "recall":[]})
+            return pd.DataFrame({"work_id":[], "version":[], "task":[]})
     def save_report_df(self, id, df):
         config = self.get_config(id, relative_to="absolute")
         report_path = self.save_relative_to(id, config["report_file"], "absolute", "local")
         df.to_csv(report_path)
     
-    def report_eval(self, id, version, dataset, step, acc, loss, precision, recall):
+    def report_eval(self, id, report):
         # 기존 데이터 로드
         df = self.get_report_df(id)
-        
+
         # 데이터 추가
-        new_df = pd.DataFrame({"version":[version], "dataset":[dataset], "step":[step], "acc":[acc], "loss":[loss], "precision":[precision], "recall":[recall]})
-        df = pd.concat([df, new_df])
+        df = df.append(report, ignore_index=True)
         
         # 저장
         self.save_report_df(id, df)
+    
+    # def report_eval(self, id, version, dataset, step, acc, loss, precision, recall):
+    #     # 기존 데이터 로드
+    #     df = self.get_report_df(id)
+        
+    #     # 데이터 추가
+    #     new_df = pd.DataFrame({"version":[version], "dataset":[dataset], "step":[step], "acc":[acc], "loss":[loss], "precision":[precision], "recall":[recall]})
+    #     df = pd.concat([df, new_df])
+        
+    #     # 저장
+    #     self.save_report_df(id, df)
 
-    def get_report_value(self, id, version, dataset):
+    def get_report_value(self, id, version, task):
         df = self.get_report_df(id)
-        df = df[(df["version"]==version) & (df["dataset"]==dataset)]
+        df = df[(df["version"]==version) & (df["task"]==task)]
         if len(df) == 0:
             return None
         else:
@@ -165,7 +175,7 @@ class WorkDB(DB):
         else:
             return self.relative_to(id, Path(config["trained_model_dir"])/f"iter_epoch_{version}.pdparams", relative_to=relative_to)
     
-    def eval(self, id, version, dataset, relative_to="project", command_to="global", report_to="local"):
+    def eval(self, id, version, task, relative_to="project", command_to="global", report_to="local"):
         code = self.get_command_code(id, "eval", relative_to=relative_to)
         
         config = self.get_config(id, relative_to="project")
@@ -177,12 +187,12 @@ class WorkDB(DB):
         options = {
                 "Global.work_id":id,
                 "Global.version":version,
-                "Global.eval_dataset":dataset,
+                "Global.eval_task":task,
                    "Global.checkpoints":model_weight,
                    "Global.save_model_dir":config["trained_model_dir"],
 
                    "Eval.dataset.data_dir": labelset_configs[0]["dataset_dir"],
-                   "Eval.dataset.label_file_list":sum([c["label"][dataset] for c in labelset_configs], []),
+                   "Eval.dataset.label_file_list":sum([c["label"][task] for c in labelset_configs], []),
                    }
         
         command = f"python {code} -c {train_config} -o {' '.join([f'{k}={v}' for k, v in options.items()])}"
@@ -192,29 +202,29 @@ class WorkDB(DB):
         with open(save_path, "a") as f:
             f.write(command+"\n")              
             
-    def get_command_code(self, id, code, relative_to="project"):
-        assert code in ["train", "eval", "infer"], f"code should be 'train', 'eval', or 'infer' but {code} is given"
+    def get_command_code(self, id, task, relative_to="project"):
+        assert task in ["train", "eval", "infer"], f"code should be 'train', 'eval', or 'infer' but {task} is given"
         assert relative_to in ["absolute", "project"], f"relative_to should be 'absolute' or 'project' but {relative_to} is given"
-        if code == "train":
-            code = "code/PaddleOCR/tools/train.py"
-        elif code == "eval":
-            code = "code/PaddleOCR/tools/eval.py"
-        elif code == "infer":
+        if task == "train":
+            task = "code/PaddleOCR/tools/train.py"
+        elif task == "eval":
+            task = "code/PaddleOCR/tools/eval.py"
+        elif task == "infer":
             task = self.get_config(id)["task"]
             if "STD" in task:
-                code = "code/PaddleOCR/tools/infer_det.py"
+                task = "code/PaddleOCR/tools/infer_det.py"
             elif "STR" in task:
-                code = "code/PaddleOCR/tools/infer_rec.py"
+                task = "code/PaddleOCR/tools/infer_rec.py"
             else:
                 None
         else:
-            code = None
+            task = None
         
         if relative_to == "absolute":
-            code = str(Path(self.PROJECT_ROOT)/code).replace('\\', '/')
+            task = str(Path(self.PROJECT_ROOT)/task).replace('\\', '/')
         elif relative_to == "project":
             pass
-        return code
+        return task
         
     def train(self, id, version, epoch, relative_to="project", command_to="global"):
         assert relative_to in ["absolute", "project"], f"relative_to should be 'absolute' or 'project' but {relative_to} is given"
@@ -264,8 +274,8 @@ class WorkDB(DB):
             return None
         
 
-    def infer(self, id, version = "best", dataset="test", relative_to="absoulte", command_to="global"):
-        assert dataset in ["train", "eval", "test"]
+    def infer(self, id, version = "best", task="test", relative_to="absoulte", command_to="global"):
+        assert task in ["train", "eval", "test"]
         assert command_to in ["global", "local"]
         code = f"{project.PROJECT_ROOT}/code/PaddleOCR/tools/infer_det.py"
         config = self.get_config(id, relative_to=relative_to)
@@ -277,7 +287,7 @@ class WorkDB(DB):
         
         labelset_ids = config["labelsets"]
         data_dir = LabelsetDB().get_config(labelset_ids[0], relative_to=relative_to)["dataset_dir"]
-        labelsets = sum([LabelsetDB().get_config(id, relative_to=relative_to)["infer"][dataset] for id in labelset_ids], [])
+        labelsets = sum([LabelsetDB().get_config(id, relative_to=relative_to)["infer"][task] for id in labelset_ids], [])
         save_dir = config["inference_result_dir"]
         command = f"python {code} -c {ppocr_config} -o Global.pretrained_model={model_weight} Global.save_res_path={save_dir} Infer.data_dir={data_dir} Infer.infer_file_list={labelsets}" # train에 대해서도 할 수 있게 수정해야 함
         print(command)

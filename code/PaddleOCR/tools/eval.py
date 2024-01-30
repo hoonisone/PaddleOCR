@@ -40,9 +40,10 @@ def main():
     workdb = WorkDB()
     id = config["Global"]["work_id"]
     version = config["Global"]["version"]
-    dataset = config["Global"]["eval_dataset"]
+    task = config["Global"]["eval_task"]
     
-    if workdb.get_report_value(id, version=version, dataset=dataset) != None:
+    item = workdb.get_report_value(id, version=version, task=task)
+    if not(isinstance(item, type(None)) or item.empty):
         print("The eval result is already reported")
         return
     ###################################################### MH Modification End
@@ -159,8 +160,12 @@ def main():
     
         
     ###################################################### MH Modification Start
-    x = metric
-    workdb.report_eval(id, version=version, dataset=dataset, step=None, acc=x.get("precision"), loss=x.get("loss"), precision=x.get("precision"), recall=x.get("recall"))    
+    report = metric
+    report["work_id"] = id
+    report["version"] = version
+    report["task"] = task
+    
+    workdb.report_eval(id, report)    
     print("Report the eval result successfully")
 
     
