@@ -113,23 +113,38 @@ class WorkDB(DB):
         
         print(f"{str(path)}")
             
-   
-    
-    @staticmethod
-    def report_eval(id, version, dataset, step, acc, loss, precision, recall):
-        workdb = WorkDB()
-        config = workdb.get_config(id, relative_to="absolute")
-        report_path = workdb.save_relative_to(id, config["report_file"], "absolute", "local")
+    def get_report_df(self, id):
+        config = self.get_config(id, relative_to="absolute")
+        config["report_file"]
+        report_path = self.save_relative_to(id, config["report_file"], "absolute", "local")
         if Path(report_path).exists():
-            df= pd.read_csv(report_path, index_col=0)
+            return pd.read_csv(report_path, index_col=0)
         else:
-            df = pd.DataFrame({"version":[], "dataset":[], "step":[], "acc":[], "loss":[], "precision":[], "recall":[]})  
-
+            return pd.DataFrame({"version":[], "dataset":[], "step":[], "acc":[], "loss":[], "precision":[], "recall":[]})
+    def save_report_df(self, id, df):
+        config = self.get_config(id, relative_to="absolute")
+        report_path = self.save_relative_to(id, config["report_file"], "absolute", "local")
+        df.to_csv(report_path)
+    
+    def report_eval(self, id, version, dataset, step, acc, loss, precision, recall):
+        # 기존 데이터 로드
+        df = self.get_report_df(id)
         
+        # 데이터 추가
         new_df = pd.DataFrame({"version":[version], "dataset":[dataset], "step":[step], "acc":[acc], "loss":[loss], "precision":[precision], "recall":[recall]})
         df = pd.concat([df, new_df])
-        df.to_csv(report_path)
+        
+        # 저장
+        self.save_report_df(id, df)
 
+    def get_report_value(self, id, version, dataset):
+        df = self.get_report_df(id)
+        df = df[(df["version"]==version) & (df["dataset"]==dataset)]
+        if len(df) == 0:
+            return None
+        else:
+            return df.iloc[0]
+    
     def get_trained_epoch(self, id):
         return len(list(Path(self.get_config(id, relative_to="absolute")["trained_model_dir"]).glob("iter_epoch_*.pdparams")))
     
@@ -271,11 +286,8 @@ class WorkDB(DB):
         with open(save_path, "a") as f:
             f.write(command+"\n")
 
-    def get_report_df(self, id):
-        config = self.get_config(id, relative_to="absolute")
-        config["report_file"]
-        report_path = self.save_relative_to(id, config["report_file"], "absolute", "local")
-        return pd.read_csv(report_path, index_col=0)
+
+        
         
 if __name__ == "__main__":
     mdb = WorkDB()

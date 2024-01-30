@@ -19,7 +19,9 @@ from __future__ import print_function
 import os
 import sys
 from database import *
-
+import pandas as pd
+from pathlib import Path
+    
 __dir__ = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, __dir__)
 sys.path.insert(0, os.path.abspath(os.path.join(__dir__, '..')))
@@ -34,6 +36,19 @@ import tools.program as program
 
 
 def main():
+    ###################################################### MH Modification Start
+    workdb = WorkDB()
+    id = config["Global"]["work_id"]
+    version = config["Global"]["version"]
+    dataset = config["Global"]["eval_dataset"]
+    
+    if workdb.get_report_value(id, version=version, dataset=dataset) != None:
+        print("The eval result is already reported")
+        return
+    ###################################################### MH Modification End
+
+    
+    
     global_config = config['Global']
     # build dataloader
     set_signal_handlers()
@@ -142,17 +157,10 @@ def main():
     for k, v in metric.items():
         logger.info('{}:{}'.format(k, v))
     
-
+        
     ###################################################### MH Modification Start
-    import pandas as pd
-    from pathlib import Path
-    
-    
-    id = config["Global"]["work_id"]
-    version = config["Global"]["version"]
-    dataset = config["Global"]["eval_dataset"]
     x = metric
-    WorkDB.report_eval(id, version=version, dataset=dataset, step=None, acc=None, loss=None, precision=x["precision"], recall=x["recall"])    
+    workdb.report_eval(id, version=version, dataset=dataset, step=None, acc=None, loss=None, precision=x["precision"], recall=x["recall"])    
     print("Report the eval result successfully")
 
     
