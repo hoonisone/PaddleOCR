@@ -19,7 +19,7 @@ class WorkDB(DB):
         config = super().get_config(id)
         
         if relative_to:
-            for k in ["inference_result_dir", "trained_model_dir", "train_config", "report_file"]:
+            for k in ["inference_result_dir", "trained_model_dir", "train_config", "report_file", "export_dir"]:
                 config[k] = self.relative_to(id, config[k], relative_to=relative_to)    
         return config    
     
@@ -47,29 +47,9 @@ class WorkDB(DB):
             "model":model,
             "report_file": "report.csv",
             "trained_model_dir": "trained_model",
-            "inference_result_dir": "inference_result"
+            "inference_result_dir": "inference_result",
+            "export_dir": "inference_models"
         }
-        
-        # model = str(ModelDB().get_config(model)["pretrained_model_weight"]) if pretrained else ""
-        # labelsets = [LabelsetDB().get_config(labelset) for labelset in labelsets]
-        
-        # data_dir = str(DatasetDB().root)
-
-        # train_config["Global"]["pretrained_model"]=model
-        # train_config["Global"]["print_batch_step"]=1
-        # train_config["Global"]["save_epoch_step"]=1
-        # train_config["Global"]["eval_batch_step"]=[0, 2000]
-        # train_config["Global"]["save_model_dir"] = trained_model"
-        # train_config["Global"]["save_inference_dir"] = f"{self.root}/{name}/trained_model"
-        # train_config["Global"]["save_res_path"] = f"{self.root}/{name}/infer"
-        # train_config["Train"]["dataset"]["data_dir"] = data_dir
-        # train_config["Train"]["dataset"]["label_file_list"] = sum([labelset["label"]["train"] for labelset in labelsets], [])
-        # train_config["Eval"]["dataset"]["data_dir"] = data_dir
-        # train_config["Eval"]["dataset"]["label_file_list"] = sum([labelset["label"]["eval"] for labelset in labelsets], [])
-        # config["Test"] = copy.deepcopy(config["Eval"])        
-        # config["Test"]["dataset"]["data_dir"] = data_dir
-        # config["Test"]["dataset"]["label_file_list"] = [str(x) for x in labelset["label"]["test"]]
-        
 
         save_dir = Path(self.PROJECT_ROOT)/self.DIR/name
         save_dir.mkdir(parents = True, exist_ok=True)
@@ -82,36 +62,25 @@ class WorkDB(DB):
             train_config = yaml.load(f, Loader=yaml.FullLoader)
             with open(save_dir/"train_config.yml", "w") as f:
                 yaml.dump(train_config, f)
-             
-    def make_inference_model(self, id, epoch=None):
-        #None epoch means best model
-        root = str(Path(self.ROOT)/id).replace("\\", "/")
+                
+    def export(self, id, version=None, relative_to="absolute", command_to="global"):
+        config = self.get_config(id, relative_to="absolute")
         
-        model = f"iter_epoch_{epoch}" if epoch else "best_model/model"
+        train_config = f"{config['trained_model_dir']}/config.yml"
+        checkpoint = self.get_model_weight(id, version=version, relative_to=relative_to)
+        inference_model_path = self.make_inference_model_path(self, id, version, relative_to=relative_to)
         
-        config = f"{root}/trained_model/config.yml"
-        checkpoint = f"{root}/trained_model/{model}"
-        # pretrained = root+"/pretrained_model/pretrained"
-        save_folder = f'epoch_{epoch}' if epoch else "best"
-        save_inferencd = f"{root}/inference_model/{save_folder}"
+        code = self.get_command_code(id, "export")
+        options = {
+            "Global.save_inference_dir":inference_model_path, # 저장될 infer model의 path (without extension)
+            "Global.checkpoints":checkpoint
+            }
+        command = f"python {code} -c {train_config} -o {' '.join([f'{k}={v}' for k, v in options.items()])}"
+        print(command)
         
-        command = f"""python code/PaddleOCR/tools/export_model.py \
-        -c {config} \
-        -o Global.save_inference_dir={save_inferencd} \
-        Global.checkpoints={checkpoint}"""
-
-        # -o Global.pretrained_model={pretrained} \        
-        if epoch == None:
-            config = self.get_config(id)
-            config["inference_model_dir"] = f"./works/{id}/inference_model/best"
-            config["inference_model"] = f"./works/{id}/inference_model/best/inference"
-            self.update_config(id, config)
-        
-        path = Path(project.PROJECT_ROOT)/"code/database/make_inference_model.sh"
-        with open(path, "a") as f:
+        save_path = self.save_relative_to(id, "export.sh", relative_to=relative_to, save_to=command_to)
+        with open(save_path, "a") as f:
             f.write(command+"\n")
-        
-        print(f"{str(path)}")
             
     def get_report_df(self, id):
         config = self.get_config(id, relative_to="absolute")
@@ -121,6 +90,7 @@ class WorkDB(DB):
             return pd.read_csv(report_path, index_col=0)
         else:
             return pd.DataFrame({"work_id":[], "version":[], "task":[]})
+    
     def save_report_df(self, id, df):
         config = self.get_config(id, relative_to="absolute")
         report_path = self.save_relative_to(id, config["report_file"], "absolute", "local")
@@ -136,17 +106,6 @@ class WorkDB(DB):
         
         # 저장
         self.save_report_df(id, df)
-    
-    # def report_eval(self, id, version, dataset, step, acc, loss, precision, recall):
-    #     # 기존 데이터 로드
-    #     df = self.get_report_df(id)
-        
-    #     # 데이터 추가
-    #     new_df = pd.DataFrame({"version":[version], "dataset":[dataset], "step":[step], "acc":[acc], "loss":[loss], "precision":[precision], "recall":[recall]})
-    #     df = pd.concat([df, new_df])
-        
-    #     # 저장
-    #     self.save_report_df(id, df)
 
     def get_report_value(self, id, version, task):
         df = self.get_report_df(id)
@@ -159,7 +118,19 @@ class WorkDB(DB):
     def get_trained_epoch(self, id):
         return len(list(Path(self.get_config(id, relative_to="absolute")["trained_model_dir"]).glob("iter_epoch_*.pdparams")))
     
+    def make_inferenece_model_name(self, version):
+        return f"inference_{version}"
     
+    def make_inference_model_path(self, id, version, relative_to="absolute"):
+        config = self.get_config(id, relative_to=relative_to)
+        dir = config['export_dir']
+        name = self.make_inferenece_model_name(version)
+        return f"{dir}/{name}"
+    
+    
+    def get_inference_model(self, id, version, relative_to="absolute"):
+        path = self.make_inference_model_path(id, version, relative_to=relative_to)
+        return path if Path(path).exists() else None
 
     def get_model_weight(self, id, version, relative_to="project"):
         trained_epoch = self.get_trained_epoch(id)
@@ -209,7 +180,7 @@ class WorkDB(DB):
             f.write(command+"\n")              
             
     def get_command_code(self, id, task, relative_to="project"):
-        assert task in ["train", "eval", "infer"], f"code should be 'train', 'eval', or 'infer' but {task} is given"
+        assert task in ["train", "eval", "infer", "export"], f"code should be 'train', 'eval', or 'infer' but {task} is given"
         assert relative_to in ["absolute", "project"], f"relative_to should be 'absolute' or 'project' but {relative_to} is given"
         if task == "train":
             task = "code/PaddleOCR/tools/train.py"
@@ -223,6 +194,8 @@ class WorkDB(DB):
                 task = "code/PaddleOCR/tools/infer_rec.py"
             else:
                 None
+        elif task == "export":
+            task = "code/PaddleOCR/tools/export_model.py"
         else:
             task = None
         
