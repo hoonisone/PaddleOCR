@@ -147,11 +147,14 @@ class WorkDB(DB):
         else:
             return self.relative_to(id, Path(config["trained_model_dir"])/f"iter_epoch_{version}.pdparams", relative_to=relative_to)
     
-    def eval(self, id, version, task, relative_to="project", command_to="global", report_to="local"):
+    def eval(self, id, version, task, relative_to="project", command_to="global", report_to="local", check_exist=True):
         item = self.get_report_value(id, version=version, task=task)
-        if not(isinstance(item, type(None)) or item.empty):
-            print(f"(id:{id}, version:{version}, task:{task}) already evaluated")
-            return 
+        
+        if check_exist:
+            # 이미 결과가 있으면 취소
+            if not(isinstance(item, type(None)) or item.empty):
+                print(f"(id:{id}, version:{version}, task:{task}) already evaluated")
+                return 
             
         code = self.get_command_code(id, "eval", relative_to=relative_to)
         
