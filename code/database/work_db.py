@@ -141,9 +141,11 @@ class WorkDB(DB):
         path = self.make_inference_model_path(id, version, relative_to=relative_to)
         return path if Path(path).exists() else None
 
-    def get_model_weight(self, id, version, relative_to="project"):
+    def get_model_weight(self, id, version, relative_to="project", check_exist=True):
         trained_epoch = self.get_trained_epoch(id)
-        assert (version in ["best", "latest", "pretrained"]) or (isinstance(version, int) and version <= trained_epoch), f"version should be 'best', 'latest', 'pretrained', or positive integer less than trained_epoch {trained_epoch} but {version} is given"
+        if check_exist:
+            assert (version in ["best", "latest", "pretrained"]) or (isinstance(version, int) and version <= trained_epoch), f"version should be 'best', 'latest', 'pretrained', or positive integer less than trained_epoch {trained_epoch} but {version} is given"
+                
         config = self.get_config(id)
         model_config = ModelDB().get_config(config["model"], relative_to=relative_to)
         
@@ -171,7 +173,7 @@ class WorkDB(DB):
         labelset_configs = [LabelsetDB().get_config(id, relative_to="project") for id in config["labelsets"]]
         
         train_config = config["train_config"]
-        model_weight = self.get_model_weight(id, version)
+        model_weight = self.get_model_weight(id, version, check_exist=check_exist)
 
         options = {
                 "Global.work_id":id,
