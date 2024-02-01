@@ -23,6 +23,14 @@ class WorkDB(DB):
                 config[k] = self.relative_to(id, config[k], relative_to=relative_to)    
         return config    
     
+    def get_df(self):
+        ides = self.get_all_id()
+        df = pd.DataFrame()
+        for id in ides:
+            config = self.get_config(id)
+            new_df = pd.DataFrame([{"id": id, "labelsets": config["labelsets"], "model": config["model"], "trained_epoch": self.get_trained_epoch(id)}])
+            df = pd.concat([df, new_df])
+        return df
     def make(self, name, labelsets, model):
         assert name not in self.get_all_id(), f"the work '{name}' already exist!"
         for labelset in labelsets:
@@ -68,7 +76,8 @@ class WorkDB(DB):
         
         train_config = f"{config['trained_model_dir']}/config.yml"
         checkpoint = self.get_model_weight(id, version=version, relative_to=relative_to)
-        inference_model_path = self.make_inference_model_path(self, id, version, relative_to=relative_to)
+        
+        inference_model_path = self.make_inference_model_path(id, version, relative_to=relative_to)
         
         code = self.get_command_code(id, "export")
         options = {
