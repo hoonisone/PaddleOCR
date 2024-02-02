@@ -149,8 +149,9 @@ class WorkDB(DB):
         config = self.get_config(id)
         model_config = ModelDB().get_config(config["model"], relative_to=relative_to)
         
-        if (version in [0, "pretrained"]) or (trained_epoch == 0):
+        if (version in [0, "pretrained"]) or (check_exist and trained_epoch == 0):
             return str(model_config["pretrained_model_weight"])
+        
         elif version == "best":
             return self.relative_to(id, Path(config["trained_model_dir"])/"best_model/model.pdparams", relative_to=relative_to)
         elif version == "latest":
