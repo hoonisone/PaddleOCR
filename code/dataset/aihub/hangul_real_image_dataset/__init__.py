@@ -41,8 +41,8 @@ class DirChecklist:
             return [path]
         else:
             return []
-        
-class HangulRealImageDataset(OpenDataset):
+
+class HangulRealImageDataset(Dataset_Loader):
     """
         AI HUB에서 제공하는 '야외 실제 촬영 한글 이미지'의 데이터를 관리하는 클래스
         데이터 정리, 로드 등 기능 제공 
@@ -86,16 +86,17 @@ class HangulRealImageDataset(OpenDataset):
                 sample_list.append([img_path, label_path])
         return sample_list
 
-    def get_box_detection_dataset(self):
-        return HangulRealImage_BoxDetectionDataset(self)
+
     
-class HangulRealImage_BoxDetectionDataset(BoxDetectionDataset):
+class HangulRealImage_BoxDetectionDataset(Dataset_Converter):
     # @override
-    def convert_x(self, x):
-        return np.array(x)
+    def get_x(self, i):
+        return self.dataset.get_x(i)
     
     # @override
-    def convert_y(self, y):
+    def get_y(self, i):
+        y = self.dataset.get_y(i)
+
         label = y
         result = []
         for annotation in label["annotations"]:

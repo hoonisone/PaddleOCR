@@ -6,7 +6,7 @@ x_ext: jpg
 y_ext: json
 
 checklist:
-    all: null
+    all: true
     train1/source: 
         all: null
         간판:
