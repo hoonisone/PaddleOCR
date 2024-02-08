@@ -2,6 +2,7 @@ from pathlib import Path
 import project
 from .db import DB
 import pandas as pd
+import yaml
 class DatasetDB(DB):
     # 데이터 셋을 관리하는 DB
     DIR = "./datasets"
@@ -9,6 +10,39 @@ class DatasetDB(DB):
     def __init__(self):
 
         super().__init__(DatasetDB.DIR, DatasetDB.CONFIG_NAME)    
+    
+    def make(self, id):
+        assert id not in self.get_all_id(), f"the dataset '{id}' already exists!"
+        
+        (Path(project.PROJECT_ROOT)/self.dir/id).mkdir(parents=True, exist_ok=True)
+        
+        config = {
+            "virtual":{
+                "flag": False,
+                "origin_dataset": ""                 
+            },
+            "task":[],
+            "labelfiles":[],
+            "options": []
+        }
+        self.update_config(id, config)
+    
+    def make_virtual(self, id, origin_dataset):
+        assert id not in self.get_all_id(), f"the dataset '{id}' already exists!"
+        assert origin_dataset in self.get_all_id(), f"the origin dataset '{origin_dataset}' does not exist!"
+        
+        (Path(project.PROJECT_ROOT)/self.dir/id).mkdir(parents=True, exist_ok=True)
+        
+        config = {
+            "virtual":{
+                "flag": True,
+                "origin_dataset": origin_dataset                 
+            },
+            "task":[],
+            "labelfiles":[],
+            "options": []
+        }
+        self.update_config(id, config)
     
     def get_all_labels(self, id, relative_to=None):
         assert id in self.get_all_id(), f"the dataset '{id}' does not exist!"

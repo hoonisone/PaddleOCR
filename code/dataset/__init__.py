@@ -208,10 +208,10 @@ class PPOCR_STD_Dataset_Loader(Dataset_Loader):
     
 class Dataset_Converter(metaclass=ABCMeta):
     def __init__(self, dataset_loader):
-        self.__dataset_loader = dataset_loader
+        self.dataset_loader = dataset_loader
         
     def __len__(self):
-        return len(self.__dataset_loader)
+        return len(self.dataset_loader)
     @abstractmethod
     def get_x(self, index):
         pass

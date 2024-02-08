@@ -7,12 +7,13 @@ from PIL import Image
 import os
 import numpy as np
 from config_loader import YamlConfigLoader
-    
+import project
 with open(Path(os.path.realpath(__file__)).parent/"preprocess/organize.json", encoding='UTF8') as f:
     ALL_PATH_PAIR = json.load(f)
     
 
-DEFALT_CONFIG_PATH = "./code/dataset/aihub/hangul_real_image_dataset/config.yml"
+DEFALT_CONFIG_PATH = Path(os.path.realpath(__file__)).parent/"config.yml"
+
 
 class DirChecklist:
     # @staticmethod
@@ -49,11 +50,25 @@ class HangulRealImageDataset(Dataset_Loader):
         데이터를 직접 다운해야 함
         
     """
+    
+
+    def get_x(self, index):
+        return self.load_x(self.get_x_path(index))
+    
+
+    def get_y(self, index):
+        return self.load_y(self.get_y_path(index))
+    
+    def __len__(self):
+        return len(self.sample_list)
+    
     def __init__(self, args=None):
         args = args if args is not None else YamlConfigLoader.load_config(DEFALT_CONFIG_PATH)
         self.args = args
         
         checklist = args.checklist
+        
+        self.dataset_dir = f"{project.PROJECT_ROOT}/{args.dataset_dir}"
 
         self.checked_dir_list = self.get_checked_dir_list(checklist)
         
@@ -61,11 +76,18 @@ class HangulRealImageDataset(Dataset_Loader):
         for dir in self.checked_dir_list:
             print(dir)
         print("******************************")
-        super().__init__(args)
+        self.sample_list = self.get_all_sample_list()
+        super().__init__()
 
     def get_checked_dir_list(self, checklist_dir_list):
         checked_dir_list = DirChecklist.get_checked_dir_list(checklist_dir_list)
-        return [Path(self.args.dataset_dir)/x for x in checked_dir_list]
+        return [Path(self.dataset_dir)/x for x in checked_dir_list]
+    
+    def get_x_path(self, index):
+        return self.sample_list[index][0]
+    
+    def get_y_path(self, index):
+        return self.sample_list[index][1]
     
     def load_x(self, path):
         return Image.open(path)
@@ -91,11 +113,11 @@ class HangulRealImageDataset(Dataset_Loader):
 class HangulRealImage_BoxDetectionDataset(Dataset_Converter):
     # @override
     def get_x(self, i):
-        return self.dataset.get_x(i)
+        return self.dataset_loader.get_x(i)
     
     # @override
     def get_y(self, i):
-        y = self.dataset.get_y(i)
+        y = self.dataset_loader.get_y(i)
 
         label = y
         result = []
@@ -112,6 +134,11 @@ class HangulRealImage_BoxDetectionDataset(Dataset_Converter):
             result.append({"bbox":[upper_left, upper_right, bottom_right, bottom_left], "label":annotation["text"]})
         return result
 
+    def get_x_path(self, index):
+        return self.dataset_loader.get_x_path(index)
+    
+    def get_y_path(self, index):
+        return self.dataset_loader.get_y_path(index)
 
 def show_data_example_function():
     import sys
@@ -127,46 +154,3 @@ def show_data_example_function():
     x, y = box_det_dataset[sample_idx]
     box_det_dataset.show_xy(x, y) # 레이블링된 이미지 출력
     box_det_dataset.show_y(y) # 레이블 출력
-
-# class AiHubShell:
-#     def __init__(self, id=None, pw=None):
-#         self._id = id if id else os.environ["AIHUB_ID"]
-#         self._pw = pw if pw else os.environ["AIHUB_PW"]
-        
-#         os.system("curl -o 'aihubshell' https://api.aihub.or.kr/api/aihubshell.do")
-#         os.system("chmod +x aihubshell")
-#         os.system("cp aihubshell /usr/bin")
-        
-#     @property
-#     def id(self):
-#         if self._id == None:
-#             self._id = input("Enter aihub id:")
-#         return self._id
-    
-#     @property
-#     def pw(self):
-#         if self._pw == None:
-#             self._pw = input("Enter aihub pw:")
-#         return self._pw
-    
-#     def download(self, dataset_key, save_dir):
-#         current_path = os.getcwd()
-#         save_dir = Path(save_dir)
-        
-#         if save_dir.exists():
-#             print(f"The save dir {save_dir} exist. The dataset might have been downloaded already. To continue, you can just delete it and do again")
-#             # return 
-        
-#         save_dir.mkdir(parents=True, exist_ok=True)
-#         os.chdir(save_dir)
-        
-#         # 다운로드
-#         os.system(f"aihubshell -mode d -aihubid {self.id} -aihubpw '{self.pw}' -datasetkey {dataset_key}")
-#         os.chdir(current_path) # 작업 디렉터리 복구
-
-
-# AIHUB_ID = "hoonisone@gmail.com"
-# AIHUB_PW = "is6E24nYiWPscH#"
-# DATASET_KEY = 105
-# SAVE_DIR = "/home/dataset/AIHUB/korean_real_outdoor_image"
-# AiHubShell(AIHUB_ID, AIHUB_PW).download(DATASET_KEY, SAVE_DIR)
