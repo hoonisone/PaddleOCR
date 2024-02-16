@@ -679,7 +679,7 @@ class DistillationNRTRLoss(CELoss):
 
 class DistillationDBLoss(DBLoss):
     def __init__(self,
-                 model_name_list=[],
+                 model_name_list=[],  
                  balance_loss=True,
                  main_loss_type='DiceLoss',
                  alpha=5,

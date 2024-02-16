@@ -33,12 +33,13 @@ class CombinedLoss(nn.Layer):
     """
     CombinedLoss:
         a combionation of loss function
+        set which losses to use in configuration, then do the enrolled loss and combine and return
     """
 
     def __init__(self, loss_config_list=None):
         super().__init__()
-        self.loss_func = []
-        self.loss_weight = []
+        self.loss_func = [] # loss function list: combine various losses
+        self.loss_weight = []  
         assert isinstance(loss_config_list, list), (
             'operator config should be a list')
         for config in loss_config_list:
@@ -52,21 +53,26 @@ class CombinedLoss(nn.Layer):
             self.loss_func.append(eval(name)(**param))
 
     def forward(self, input, batch, **kargs):
-        loss_dict = {}
-        loss_all = 0.
+        loss_dict = {} # loss may be multiple values by using various method
+        loss_all = 0. # what is this?
         for idx, loss_func in enumerate(self.loss_func):
             loss = loss_func(input, batch, **kargs)
             if isinstance(loss, paddle.Tensor):
                 loss = {"loss_{}_{}".format(str(loss), idx): loss}
+                # is all the form of return is value?
 
             weight = self.loss_weight[idx]
+            # weight for current loss
 
-            loss = {key: loss[key] * weight for key in loss}
+            loss = {key: loss[key] * weight for key in loss} #apply the corresponding weight for all loss values in the loss_dict
+            # loss form is probably loss_dict
 
             if "loss" in loss:
                 loss_all += loss["loss"]
+                # every loss_dict has total loss which is form of value, not dict
             else:
                 loss_all += paddle.add_n(list(loss.values()))
+                # if the loss_dict has no total loss value, get the total loss by directly accumalating every losses
             loss_dict.update(loss)
         loss_dict["loss"] = loss_all
         return loss_dict
