@@ -159,7 +159,7 @@ class WorkDB(DB):
         else:
             return self.relative_to(id, Path(config["trained_model_dir"])/f"iter_epoch_{version}.pdparams", relative_to=relative_to)
     
-    def eval(self, id, version, task, relative_to="project", command_to="global", report_to="local", check_exist=True):
+    def eval(self, id, version, task, relative_to="project", command_to="global", report_to="local", check_exist=True, labelsets=None, data_dir=None, save = True):
         item = self.get_report_value(id, version=version, task=task)
         
         if check_exist:
@@ -176,6 +176,10 @@ class WorkDB(DB):
         train_config = config["train_config"]
         model_weight = self.get_model_weight(id, version, check_exist=check_exist)
 
+        if (data_dir == None) or (labelsets == None):
+            data_dir = labelset_configs[0]["dataset_dir"]
+            labelsets = sum([c["label"][task] for c in labelset_configs], [])
+
         options = {
                 "Global.work_id":id,
                 "Global.version":version,
@@ -183,8 +187,10 @@ class WorkDB(DB):
                    "Global.checkpoints":model_weight,
                    "Global.save_model_dir":config["trained_model_dir"],
 
-                   "Eval.dataset.data_dir": labelset_configs[0]["dataset_dir"],
-                   "Eval.dataset.label_file_list":sum([c["label"][task] for c in labelset_configs], []),
+                   "Eval.dataset.data_dir": data_dir,
+                   "Eval.dataset.label_file_list":labelsets,
+                   "Eval.save":save,
+                   "Eval.check_exist":check_exist
                    }
         
         command = f"python {code} -c {train_config} -o {' '.join([f'{k}={v}' for k, v in options.items()])}"
@@ -268,11 +274,14 @@ class WorkDB(DB):
             return None
         
 
-    def infer(self, id, version = "best", task="test", relative_to="absoulte", command_to="global"):
+    def infer(self, id, version = "best", task="test", relative_to="absolute", command_to="global", data_dir=None, labelsets=None):
         assert task in ["train", "eval", "test"]
         assert command_to in ["global", "local"]
-        code = f"{project.PROJECT_ROOT}/code/PaddleOCR/tools/infer_det.py"
         config = self.get_config(id, relative_to=relative_to)
+        if "STR" in config["task"]:
+            code = f"{project.PROJECT_ROOT}/code/PaddleOCR/tools/infer_rec.py"
+        elif "DET" in config["task"]:
+            code = f"{project.PROJECT_ROOT}/code/PaddleOCR/tools/infer_det.py"
         
         ppocr_config = config["train_config"]  
         
@@ -280,10 +289,14 @@ class WorkDB(DB):
         model_weight = ".".join(model_weight.split(".")[:-1]) # 확장자 제거
         
         labelset_ids = config["labelsets"]
-        data_dir = LabelsetDB().get_config(labelset_ids[0], relative_to=relative_to)["dataset_dir"]
-        labelsets = sum([LabelsetDB().get_config(id, relative_to=relative_to)["infer"][task] for id in labelset_ids], [])
+        
+        if data_dir==None and labelsets==None:
+            data_dir = LabelsetDB().get_config(labelset_ids[0], relative_to=relative_to)["dataset_dir"]
+            labelsets = sum([LabelsetDB().get_config(id, relative_to=relative_to)["infer"][task] for id in labelset_ids], [])
+            
         save_dir = config["inference_result_dir"]
-        command = f"python {code} -c {ppocr_config} -o Global.pretrained_model={model_weight} Global.save_res_path={save_dir} Infer.data_dir={data_dir} Infer.infer_file_list={labelsets}" # train에 대해서도 할 수 있게 수정해야 함
+
+        command = f"python {code} -c {ppocr_config} -o Global.pretrained_model={model_weight}, Global.checkpoints={model_weight} Global.save_model_dir={model_weight} Global.save_res_path={save_dir} Infer.data_dir={data_dir} Infer.infer_file_list={labelsets}" # train에 대해서도 할 수 있게 수정해야 함
         print(command)
 
         save_path = self.save_relative_to(id, "infer.sh", relative_to=relative_to, save_to=command_to)
