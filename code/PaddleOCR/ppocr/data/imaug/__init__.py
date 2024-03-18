@@ -33,6 +33,7 @@ from .randaugment import RandAugment
 from .copy_paste import CopyPaste
 from .ColorJitter import ColorJitter
 from .operators import *
+from .operators_mh import *
 from .label_ops import *
 
 from .east_process import *
@@ -46,7 +47,6 @@ from .fce_aug import *
 from .fce_targets import FCENetTargets
 from .ct_process import *
 from .drrg_targets import DRRGTargets
-
 
 def transform(data, ops=None):
     """ transform """

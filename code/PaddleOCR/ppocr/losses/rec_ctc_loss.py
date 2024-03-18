@@ -27,6 +27,16 @@ class CTCLoss(nn.Layer):
         self.use_focal_loss = use_focal_loss
 
     def forward(self, predicts, batch):
+        # print("@@@@@@@")
+        # # print(f"predicts: {predicts}")
+        # print(f"type(predicts): {type(predicts)}")
+        # print(f"predicts.shape: {predicts.shape}")
+        # # print(f"batch: {batch}")
+        # print(f"type(batch): {type(batch)}")
+        # print(f"len(batch): {len(batch)}")
+        # print(f"batch[0]: {batch[0]}")
+        
+
         if isinstance(predicts, (list, tuple)):
             predicts = predicts[-1]
         predicts = predicts.transpose((1, 0, 2))
@@ -42,4 +52,6 @@ class CTCLoss(nn.Layer):
             weight = paddle.square(weight)
             loss = paddle.multiply(loss, weight)
         loss = loss.mean()
+        # 그냥 궁금한 건데... CTC Loss가 단일 계산이긴 해도 {'CTC':xxx, 'loss':xxx} 이런식으로 하는것이 더 일관되지 않나?
+        # 뒤에서 dict에 update해서 사용하기에 더 편할 것도 같고..
         return {'loss': loss}

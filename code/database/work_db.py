@@ -8,6 +8,18 @@ import copy
 import project
 from functools import reduce
 import pandas as pd
+import matplotlib.pyplot as plt
+
+def smooth(x, window):
+    new = []
+    for i in range(len(x)):
+        r = max(i-window+1, 0)
+        q = i
+        new.append(sum(x[r:q+1])/(q-r+1))
+    return new
+    
+    
+    
 class WorkDB(DB):
     DIR = "./works"
     CONFIG_NAME = "work_config.yml"
@@ -296,7 +308,7 @@ class WorkDB(DB):
             
         save_dir = config["inference_result_dir"]
 
-        command = f"python {code} -c {ppocr_config} -o Global.pretrained_model={model_weight}, Global.checkpoints={model_weight} Global.save_model_dir={model_weight} Global.save_res_path={save_dir} Infer.data_dir={data_dir} Infer.infer_file_list={labelsets}" # train에 대해서도 할 수 있게 수정해야 함
+        command = f"python {code} -c {ppocr_config} -o Global.pretrained_model={model_weight} Global.checkpoints={model_weight} Global.save_model_dir={model_weight} Global.save_res_path={save_dir} Infer.data_dir={data_dir} Infer.infer_file_list={labelsets}" # train에 대해서도 할 수 있게 수정해야 함
         print(command)
 
         save_path = self.save_relative_to(id, "infer.sh", relative_to=relative_to, save_to=command_to)
@@ -304,8 +316,63 @@ class WorkDB(DB):
             f.write(command+"\n")
 
 
+    def get_best_epoch(self, id, criteria = "test"):
+        df = self.get_report_df(id)
+        df.reset_index(inplace=True)
+        df = df[df["task"] == criteria]
+        df = df[df["version"] != "best"]
+        return df.loc[df["acc"].idxmax()].version
+    
+    def get_best_report(self, id, criteria = "test"):
+        epoch = self.get_best_epoch(id, criteria)
+        df = self.get_report_df(id)
+        return df[df["version"] == epoch]
+
+    def draw_det_graph(self, id, window=1):
+        plt.gcf().set_size_inches(8, 3)
+    
+        df = self.get_report_df(id).sort_values("version")
+        plt.subplot(1, 2, 1)
+        plt.title(f"Precision")
+        plt.xlabel("Epochs")
+        for task in ["train", "eval", "test"]:
+            task_df = df[df["task"] == task]
+            data = smooth(task_df["precision"], window=window)
+            plt.plot(task_df["version"], data, label=f"{task}")
+        plt.legend()
         
+        plt.subplot(1, 2, 2)
+        plt.title(f"Recall")
+        plt.xlabel("Epochs")
+        for task in ["train", "eval", "test"]:
+            task_df = df[df["task"] == task]
+            data = smooth(task_df["recall"], window=window)
+            plt.plot(task_df["version"], data, label=f"{task}")   
+        plt.legend()   
+    
+    def draw_rec_graph(self, id, window=1):
+        plt.gcf().set_size_inches(8, 3)
         
+        df = self.get_report_df(id).sort_values("version")
+        
+        plt.subplot(1, 2, 1)
+        plt.title(f"Accuracy")
+        plt.xlabel("Epochs")
+        for task in ["train", "eval", "test"]:
+            task_df = df[df["task"] == task]
+            data = smooth(task_df["acc"], window=window)
+            plt.plot(task_df["version"], data, label=f"{task}")
+        plt.legend()
+            
+        plt.subplot(1, 2, 2)
+        plt.title(f"Norm-Edit-Distance")
+        plt.xlabel("Epochs")
+        for task in ["train", "eval", "test"]:
+            task_df = df[df["task"] == task]
+            data = smooth(task_df["norm_edit_dis"], window=window)
+            plt.plot(task_df["version"], data, label=f"{task}")    
+        plt.legend()
+        return plt    
 if __name__ == "__main__":
     mdb = WorkDB()
     

@@ -43,7 +43,9 @@ def main():
     task = config["Global"]["eval_task"]
     
     item = workdb.get_report_value(id, version=version, task=task)
-    if not(isinstance(item, type(None)) or item.empty):
+    check_exist = config["Eval"]["check_exist"]
+    
+    if check_exist and (not(isinstance(item, type(None)) or item.empty)):
         print("The eval result is already reported")
         return
     ###################################################### MH Modification End
@@ -58,10 +60,11 @@ def main():
     # build post process
     post_process_class = build_post_process(config['PostProcess'],
                                             global_config)
-
+    
     # build model
     # for rec algorithm
     if hasattr(post_process_class, 'character'):
+        
         char_num = len(getattr(post_process_class, 'character'))
         if config['Architecture']["algorithm"] in ["Distillation",
                                                    ]:  # distillation model
@@ -160,13 +163,14 @@ def main():
     
         
     ###################################################### MH Modification Start
-    report = metric
-    report["work_id"] = id
-    report["version"] = version
-    report["task"] = task
-    
-    workdb.report_eval(id, report)    
-    print("Report the eval result successfully")
+    if config["Eval"]["save"]:
+        report = metric
+        report["work_id"] = id
+        report["version"] = version
+        report["task"] = task
+        
+        workdb.report_eval(id, report)    
+        print("Report the eval result successfully")
 
     
     ###################################################### MH Modification End
