@@ -16,7 +16,7 @@ import importlib
 import copy
 
 from .rec_metric import RecMetric
-from .det_metric import DetMetric
+from .det_metric import DetMetric, DetFCEMetric
 from .e2e_metric import E2EMetric
 from .cls_metric import ClsMetric
 from .vqa_token_ser_metric import VQASerTokenMetric
@@ -45,6 +45,7 @@ class DistillationMetric(object):
             self.metrics[key].reset()
 
     def __call__(self, preds, batch, **kwargs):
+        
         assert isinstance(preds, dict)
         if self.metrics is None:
             self._init_metrcis(preds)

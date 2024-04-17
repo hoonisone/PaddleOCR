@@ -252,8 +252,14 @@ class DBPostProcess(object):
 
             else:
                 raise ValueError("box_type can only be one of ['quad', 'poly']")
+            #### MH Modification from
+            # boxes_batch.append({'points': boxes})
+            
+            #### MH Modification to
+            
+            boxes_batch.append({'points': boxes, "scores":scores})
+            ############################################
 
-            boxes_batch.append({'points': boxes})
         return boxes_batch
 
 

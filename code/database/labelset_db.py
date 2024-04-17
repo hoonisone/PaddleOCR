@@ -54,7 +54,7 @@ class LabelsetDB(DB):
         
         # 데이터 셋에 대한 train, val, test 레이블 셋 구성
         datasetDB = DatasetDB()
-        assert len(set(sum([datasetDB.get_config(id)["task"] for id in datasets], []))) == 1  ##### 미완성
+        assert len(set(sum([datasetDB.get_config(id)["task"] for id in datasets], []))) <= 1  ##### 미완성
         
         random.seed(random_seed)        
         
@@ -66,6 +66,7 @@ class LabelsetDB(DB):
         for dataset in split_ratio.keys():
             labels = datasetDB.get_all_labels(dataset, relative_to="dir")
             random.shuffle(labels) if shuffle else ""
+            print(dataset, split_ratio[dataset])
             for whole, patial in zip(labelsets, split_list(labels, split_ratio[dataset])): # dataset을 지정된 비율에 따라 [train, val, test]로 split 한 뒤 더함 
                 whole+=patial
                  
@@ -129,7 +130,7 @@ class LabelsetDB(DB):
 
         whole_labels = []
         for labelset in labelsets:
-            config = self.get_config(labelset)
+            config = self.get_config(labelset, relative_to="absolute")
             label_files = config["label"]["train"] + config["label"]["eval"]
             # label_files = [str(Path(self.ROOT/config["name"]for label_file in label_files]
             labels = sum([[line.strip("\n") for line in open(label_file).readlines()] for label_file in label_files], [])
@@ -148,10 +149,11 @@ class LabelsetDB(DB):
             train = sum([[] if i==j else segment for j, segment in enumerate(segments)], [])
             val = segments[i]
             new_name = new_names[i]
-            new_label_dir = Path(self.root)/new_name
+            new_label_dir = Path(self.DIR)/new_name
             new_label_dir.mkdir(parents=True, exist_ok=True)
             open(new_label_dir/LabelsetDB.TRAIN_LABEL_FILE, "w").write("\n".join(train))
             open(new_label_dir/LabelsetDB.EVAL_LABEL_FILE, "w").write("\n".join(val))
+            print(new_label_dir/LabelsetDB.TRAIN_LABEL_FILE)
             
             train_infer = [label.split("\t")[0] for label in train]
             val_infer = [label.split("\t")[0] for label in val]
@@ -160,6 +162,7 @@ class LabelsetDB(DB):
             
             config = {}
             config["name"] = new_name
+            config["dataset_dir"] = self.DIR
             config["origin_labelset"] = labelsets
             config["k_fold"] = {"k":k, "i":i+1}
             config["label"]={

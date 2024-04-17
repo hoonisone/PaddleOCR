@@ -36,8 +36,7 @@ class DetMetric(object):
            ignore_tags: np.ndarray  of shape (N, K), indicates whether a region is ignorable or not. => 신뢰도인가??
        preds: a list of dict produced by post process # 예측
             points: np.ndarray of shape (N, K, 4, 2), the polygons of objective regions.
-            
-            
+            confidences: np.ndarray of shape (N, K)
        '''
         ############################################## 근데 어떻게 추론 개수가 정확히 gt 개수와 똑같지?.... 앞에서 사전에 정리를 했나?..
         # 아마 polygon의 K와 preds의 K가 같은 값을 의미하는게 아닌 듯
@@ -135,27 +134,46 @@ class DetFCEMetric(object):
             }
         """
         metrics = {}
+        metrics_list = []
         hmean = 0
         for score_thr in self.results.keys():
             metric = self.evaluator.combine_results(self.results[score_thr])
+            metrics_list.append(metric)
             # for key, value in metric.items():
             #     metrics['{}_{}'.format(key, score_thr)] = value
             metric_str = 'precision:{:.5f} recall:{:.5f} hmean:{:.5f}'.format(
                 metric['precision'], metric['recall'], metric['hmean'])
             metrics['thr {}'.format(score_thr)] = metric_str
             hmean = max(hmean, metric['hmean'])
+        
+        max_precision = 0
+        pre_recall = 1
+        AP = 0
+        for v in metrics_list:
+            precision = v["precision"]
+            recall = v["recall"]
+            delta_recall = pre_recall-recall
+            AP += max_precision*delta_recall
+            max_precision = max(max_precision, precision)
+            pre_recall = recall
+        print(f"AP={AP}")
+            
         metrics['hmean'] = hmean
 
         self.reset()
+        
+        
+        
         return metrics
 
     def reset(self):
-        self.results = {
-            0.3: [],
-            0.4: [],
-            0.5: [],
-            0.6: [],
-            0.7: [],
-            0.8: [],
-            0.9: []
-        }  # clear results
+        self.results = {0.1*th:[] for th in range(0, 10)}
+        # self.results = {
+        #     0.3: [],
+        #     0.4: [],
+        #     0.5: [],
+        #     0.6: [],
+        #     0.7: [],
+        #     0.8: [],
+        #     0.9: []
+        # }  # clear results

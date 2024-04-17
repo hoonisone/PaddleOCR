@@ -292,7 +292,7 @@ class WorkDB(DB):
         config = self.get_config(id, relative_to=relative_to)
         if "STR" in config["task"]:
             code = f"{project.PROJECT_ROOT}/code/PaddleOCR/tools/infer_rec.py"
-        elif "DET" in config["task"]:
+        elif "STD" in config["task"]:
             code = f"{project.PROJECT_ROOT}/code/PaddleOCR/tools/infer_det.py"
         
         ppocr_config = config["train_config"]  
