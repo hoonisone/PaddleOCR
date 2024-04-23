@@ -200,7 +200,7 @@ class WorkDB(DB):
                    "Global.save_model_dir":config["trained_model_dir"],
 
                    "Eval.dataset.data_dir": data_dir,
-                   "Eval.dataset.label_file_list":labelsets,
+                   "Eval.dataset.label_file_list":f"""['{"','".join(labelsets)}']""",
                    "Eval.save":save,
                    "Eval.check_exist":check_exist
                    }
@@ -248,17 +248,19 @@ class WorkDB(DB):
         model_weight = self.get_model_weight(id, version, relative_to=relative_to)
         model_weight = ".".join(model_weight.split(".")[:-1]) # 확장자 제거
         
-        train_config = config["train_config"]        
+        train_config = config["train_config"]
+        train_labelsets = sum([c["label"]["train"] for c in labelset_configs], [])
+        eval_labelsets = sum([c["label"]["eval"] for c in labelset_configs], [])
         options = {
                    "Global.checkpoints":model_weight,
                    "Global.epoch_num":epoch,
                    "Global.save_model_dir":config["trained_model_dir"],
                    
                    "Train.dataset.data_dir": labelset_configs[0]["dataset_dir"],
-                   "Train.dataset.label_file_list":sum([c["label"]["train"] for c in labelset_configs], []),
+                   "Train.dataset.label_file_list":f"""['{"','".join(train_labelsets)}']""",
                    
                    "Eval.dataset.data_dir": labelset_configs[0]["dataset_dir"],
-                   "Eval.dataset.label_file_list":sum([c["label"]["eval"] for c in labelset_configs], []),
+                   "Eval.dataset.label_file_list":f"""['{"','".join(eval_labelsets)}']""",
                    }
         
         command = f"python {code} -c {train_config} -o {' '.join([f'{k}={v}' for k, v in options.items()])}"
@@ -370,6 +372,34 @@ class WorkDB(DB):
         for task in ["train", "eval", "test"]:
             task_df = df[df["task"] == task]
             data = smooth(task_df["norm_edit_dis"], window=window)
+            plt.plot(task_df["version"], data, label=f"{task}")    
+        plt.legend()
+        return plt    
+    
+    def draw_rec_graph_v2(self, id, window=1):
+        plt.gcf().set_size_inches(8, 3)
+        
+        df = self.get_report_df(id).sort_values("version")
+        
+        plt.subplot(1, 2, 1)
+        plt.title(f"Accuracy")
+        plt.xlabel("Epochs")
+        for task in ["train", "eval"]:
+            task_df = df[df["task"] == task]
+            data = smooth(task_df["acc"], window=window)
+            if task == "eval":
+                task = "test"
+            plt.plot(task_df["version"], data, label=f"{task}")
+        plt.legend()
+            
+        plt.subplot(1, 2, 2)
+        plt.title(f"Norm-Edit-Distance")
+        plt.xlabel("Epochs")
+        for task in ["train", "eval"]:
+            task_df = df[df["task"] == task]
+            data = smooth(task_df["norm_edit_dis"], window=window)
+            if task == "eval":
+                task = "test"
             plt.plot(task_df["version"], data, label=f"{task}")    
         plt.legend()
         return plt    

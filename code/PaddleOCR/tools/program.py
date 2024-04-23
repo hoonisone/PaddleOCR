@@ -260,6 +260,10 @@ def train(config,
     max_iter = len(train_dataloader) - 1 if platform.system(
     ) == "Windows" else len(train_dataloader)
 
+    # print(lr_scheduler.get_lr())
+    # print(lr_scheduler.base_lr)
+    # exit()
+    
     for epoch in range(start_epoch, epoch_num + 1):
         if train_dataloader.dataset.need_reset:
             train_dataloader = build_dataloader(
