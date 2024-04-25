@@ -40,6 +40,7 @@ class RecMetric(object):
         preds, labels = pred_label
         # preds: [(test, acc), ...]
         # labels: [(test, acc), ...]
+
         correct_num = 0
         all_num = 0
         norm_edit_dis = 0.0

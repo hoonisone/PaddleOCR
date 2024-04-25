@@ -302,15 +302,16 @@ def train(config,
                 scaled_avg_loss.backward()
                 scaler.minimize(optimizer, scaled_avg_loss)
             else:
-                
-                if model_type == 'table' or extra_input:
+                if model_type == 'table' or extra_input: # 현재 사용하는 rec는 extra_input이 있음
                     preds = model(images, data=batch[1:])
                 elif model_type in ["kie", 'sr']:
                     preds = model(batch)
                 elif algorithm in ['CAN']:
                     preds = model(batch[:3])
                 else:
-                    preds = model(images)             # 현재 DB 알고리즘 사용 중    
+
+                    preds = model(images)             # 현재 DB 알고리즘 사용 중  
+                # print(preds)
                 # len(batch)    : 5
                 # type(batch)   : list
                 # type(batch[0]): <class 'paddle.Tensor'>

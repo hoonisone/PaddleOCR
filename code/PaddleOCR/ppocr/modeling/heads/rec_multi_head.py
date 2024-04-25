@@ -17,6 +17,7 @@ from __future__ import division
 from __future__ import print_function
 
 import math
+from re import I
 import paddle
 from paddle import ParamAttr
 import paddle.nn as nn
@@ -26,7 +27,6 @@ from ppocr.modeling.necks.rnn import Im2Seq, EncoderWithRNN, EncoderWithFC, Sequ
 from .rec_ctc_head import CTCHead
 from .rec_sar_head import SARHead
 from .rec_nrtr_head import Transformer
-
 
 class FCTranspose(nn.Layer):
     def __init__(self, in_channels, out_channels, only_transpose=False):
@@ -81,26 +81,44 @@ class MultiHead(nn.Layer):
                     encoder_type=encoder_type, **neck_args)
                 # ctc head
                 head_args = self.head_list[idx][name]['Head']
+
                 self.ctc_head = eval(name)(in_channels=self.ctc_encoder.out_channels, \
                     out_channels=out_channels_list['CTCLabelDecode'], **head_args)
             else:
                 raise NotImplementedError(
                     '{} is not supported in MultiHead yet'.format(name))
 
-    def forward(self, x, targets=None):
 
+    def forward(self, x, targets=None):
+        # print("1")
+        # print(x.shape)
+        
         ctc_encoder = self.ctc_encoder(x)
+        # print("2")
+        # print(ctc_encoder.shape)
+        
         ctc_out = self.ctc_head(ctc_encoder, targets)
+        # print("3")
+        # print(ctc_out.shape)
+        
         head_out = dict()
         head_out['ctc'] = ctc_out
         head_out['ctc_neck'] = ctc_encoder
+        
         # eval mode
         if not self.training:
             return ctc_out
+        
         if self.gtc_head == 'sar':
+            # print("AA")
+            # print("2")
+            # print(targets)
+            # print("2")
+            # print(targets[1:])
             sar_out = self.sar_head(x, targets[1:])
             head_out['sar'] = sar_out
         else:
             gtc_out = self.gtc_head(self.before_gtc(x), targets[1:])
             head_out['nrtr'] = gtc_out
+        # exit()
         return head_out

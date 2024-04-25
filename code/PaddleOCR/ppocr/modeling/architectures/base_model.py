@@ -32,6 +32,7 @@ class BaseModel(nn.Layer):
             config (dict): the super parameters for module.
         """
         super(BaseModel, self).__init__()
+
         in_channels = config.get('in_channels', 3)
         model_type = config['model_type']
         # build transfrom,
@@ -73,6 +74,7 @@ class BaseModel(nn.Layer):
         else:
             self.use_head = True
             config["Head"]['in_channels'] = in_channels
+
             self.head = build_head(config["Head"])
 
         self.return_all_feats = config.get("return_all_feats", False)
@@ -80,7 +82,7 @@ class BaseModel(nn.Layer):
     def forward(self, x, data=None):
 
         y = dict()
-        if self.use_transform:
+        if self.use_transform: # pass
             x = self.transform(x)
         if self.use_backbone:
             x = self.backbone(x)
@@ -88,16 +90,21 @@ class BaseModel(nn.Layer):
             y.update(x)
         else:
             y["backbone_out"] = x
+            
+        
         final_name = "backbone_out"
-        if self.use_neck:
+        if self.use_neck: # pass
             x = self.neck(x)
             if isinstance(x, dict):
                 y.update(x)
             else:
                 y["neck_out"] = x
             final_name = "neck_out"
+            
+        
         if self.use_head:
             x = self.head(x, targets=data)
+            
             # for multi head, save ctc neck out for udml
             if isinstance(x, dict) and 'ctc_neck' in x.keys():
                 y["neck_out"] = x["ctc_neck"]
@@ -107,6 +114,7 @@ class BaseModel(nn.Layer):
             else:
                 y["head_out"] = x
             final_name = "head_out"
+            
         if self.return_all_feats:
             if self.training:
                 return y

@@ -74,6 +74,7 @@ def build_backbone(config, model_type):
         raise NotImplementedError
 
     module_name = config.pop('name')
+
     assert module_name in support_dict, Exception(
         "when model typs is {}, backbone only support {}".format(model_type,
                                                                  support_dict))

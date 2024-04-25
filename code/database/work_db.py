@@ -288,7 +288,7 @@ class WorkDB(DB):
             return None
         
 
-    def infer(self, id, version = "best", task="test", relative_to="absolute", command_to="global", data_dir=None, labelsets=None):
+    def infer(self, id, version = "best", task="test", relative_to="absolute", command_to="global", data_dir=None, labelsets=None, save_path = None):
         assert task in ["train", "eval", "test"]
         assert command_to in ["global", "local"]
         config = self.get_config(id, relative_to=relative_to)
@@ -307,10 +307,11 @@ class WorkDB(DB):
         if data_dir==None and labelsets==None:
             data_dir = LabelsetDB().get_config(labelset_ids[0], relative_to=relative_to)["dataset_dir"]
             labelsets = sum([LabelsetDB().get_config(id, relative_to=relative_to)["infer"][task] for id in labelset_ids], [])
-            
-        save_dir = config["inference_result_dir"]
+        
+        
+        save_path = save_path if save_path else config["inference_result_dir"]
 
-        command = f"python {code} -c {ppocr_config} -o Global.pretrained_model={model_weight} Global.checkpoints={model_weight} Global.save_model_dir={model_weight} Global.save_res_path={save_dir} Infer.data_dir={data_dir} Infer.infer_file_list={labelsets}" # train에 대해서도 할 수 있게 수정해야 함
+        command = f"python {code} -c {ppocr_config} -o Global.pretrained_model={model_weight} Global.checkpoints={model_weight} Global.save_model_dir={model_weight} Global.save_res_path={save_path} Infer.data_dir={data_dir} Infer.infer_file_list={labelsets}" # train에 대해서도 할 수 있게 수정해야 함
         print(command)
 
         save_path = self.save_relative_to(id, "infer.sh", relative_to=relative_to, save_to=command_to)
@@ -352,7 +353,7 @@ class WorkDB(DB):
             plt.plot(task_df["version"], data, label=f"{task}")   
         plt.legend()   
     
-    def draw_rec_graph(self, id, window=1):
+    def draw_rec_graph(self, id, window=1, tasks = ["train", "eval", "test"], labels = ["train", "eval", "test"]):
         plt.gcf().set_size_inches(8, 3)
         
         df = self.get_report_df(id).sort_values("version")
@@ -360,23 +361,25 @@ class WorkDB(DB):
         plt.subplot(1, 2, 1)
         plt.title(f"Accuracy")
         plt.xlabel("Epochs")
-        for task in ["train", "eval", "test"]:
+        for task, label in zip(tasks, labels):
             task_df = df[df["task"] == task]
             data = smooth(task_df["acc"], window=window)
-            plt.plot(task_df["version"], data, label=f"{task}")
+            plt.plot(task_df["version"], data, label=label)
         plt.legend()
             
         plt.subplot(1, 2, 2)
         plt.title(f"Norm-Edit-Distance")
         plt.xlabel("Epochs")
-        for task in ["train", "eval", "test"]:
+        for task, label in zip(tasks, labels):
             task_df = df[df["task"] == task]
             data = smooth(task_df["norm_edit_dis"], window=window)
-            plt.plot(task_df["version"], data, label=f"{task}")    
+            plt.plot(task_df["version"], data, label=label)    
         plt.legend()
         return plt    
     
-    def draw_rec_graph_v2(self, id, window=1):
+    
+    
+    def draw_rec_graph_v2(self, id, window=1, tasks = ["train", "eval", "test"], labels = ["train", "eval", "test"]):
         plt.gcf().set_size_inches(8, 3)
         
         df = self.get_report_df(id).sort_values("version")
@@ -384,25 +387,26 @@ class WorkDB(DB):
         plt.subplot(1, 2, 1)
         plt.title(f"Accuracy")
         plt.xlabel("Epochs")
-        for task in ["train", "eval"]:
+        for task, label in zip(tasks, labels):
             task_df = df[df["task"] == task]
             data = smooth(task_df["acc"], window=window)
             if task == "eval":
                 task = "test"
-            plt.plot(task_df["version"], data, label=f"{task}")
+            plt.plot(task_df["version"], data, label=label)
         plt.legend()
             
         plt.subplot(1, 2, 2)
         plt.title(f"Norm-Edit-Distance")
         plt.xlabel("Epochs")
-        for task in ["train", "eval"]:
+        for task, label in zip(tasks, labels):
             task_df = df[df["task"] == task]
             data = smooth(task_df["norm_edit_dis"], window=window)
             if task == "eval":
                 task = "test"
-            plt.plot(task_df["version"], data, label=f"{task}")    
+            plt.plot(task_df["version"], data, label=label)    
         plt.legend()
         return plt    
+
 if __name__ == "__main__":
     mdb = WorkDB()
     

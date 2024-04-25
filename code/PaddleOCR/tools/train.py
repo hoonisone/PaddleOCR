@@ -46,6 +46,7 @@ def main(config, device, logger, vdl_writer):
     if config['Global']['distributed']:
         dist.init_parallel_env()
 
+    
     global_config = config['Global']
 
     # build dataloader
@@ -72,6 +73,7 @@ def main(config, device, logger, vdl_writer):
     # build model
     # for rec algorithm
     if hasattr(post_process_class, 'character'):
+
         char_num = len(getattr(post_process_class, 'character'))
         if config['Architecture']["algorithm"] in ["Distillation",
                                                    ]:  # distillation model
@@ -102,8 +104,10 @@ def main(config, device, logger, vdl_writer):
                 else:
                     config['Architecture']["Models"][key]["Head"][
                         'out_channels'] = char_num
+
         elif config['Architecture']['Head'][
                 'name'] == 'MultiHead':  # for multi head
+
             if config['PostProcess']['name'] == 'SARLabelDecode':
                 char_num = char_num - 2
             if config['PostProcess']['name'] == 'NRTRLabelDecode':
