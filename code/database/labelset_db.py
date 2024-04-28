@@ -5,8 +5,10 @@ from .dataset_db import DatasetDB
 from .db import DB
 import project
 
-def split_list(data, ratio):
+def split_list(data, ratio, size=None):
     total_num = len(data)
+    if isinstance(size, int):
+        total_num = min(total_num, size)
     total_ratio = sum(ratio)
     num_list = [int(total_num*(r/total_ratio)) for r in ratio]
     result = []
@@ -14,7 +16,7 @@ def split_list(data, ratio):
     for num in num_list[:-1]:
         result.append(data[acc:acc+num])
         acc += num
-    result.append(data[acc:])
+    result.append(data[acc:total_num])
     return result
     
 class LabelsetDB(DB):
@@ -31,7 +33,7 @@ class LabelsetDB(DB):
     def __init__(self):
         super().__init__(LabelsetDB.DIR, LabelsetDB.CONFIG_NAME)
     
-    def make(self, name, datasets, split_ratio=[8, 1, 1], individual_split_ratio={}, shuffle=True, random_seed=100):
+    def make(self, name, datasets, split_ratio=[8, 1, 1], individual_split_ratio={}, shuffle=True, random_seed=100, size=None):
         """_summary_
             make label set from the datasets with split_ratio option
         Args:
@@ -63,11 +65,20 @@ class LabelsetDB(DB):
         split_ratio.update(individual_split_ratio)
         
         labelsets = [[], [], []] # 전체 레이블 셋 [train, val, test]
-        for dataset in split_ratio.keys():
-            labels = datasetDB.get_all_labels(dataset, relative_to="dir")
+        
+        labels_list = [datasetDB.get_all_labels(dataset, relative_to="dir") for dataset in split_ratio.keys()]
+        size_list = [len(labels) for labels in labels_list]
+        if size:
+            total_num = sum(size_list)
+            size_list = [int(num*size/total_num) for num in size_list]
+        
+        
+        for i, dataset in enumerate(split_ratio.keys()):
+            labels = labels_list[i]
+            size = size_list[i]
             random.shuffle(labels) if shuffle else ""
             print(dataset, split_ratio[dataset])
-            for whole, patial in zip(labelsets, split_list(labels, split_ratio[dataset])): # dataset을 지정된 비율에 따라 [train, val, test]로 split 한 뒤 더함 
+            for whole, patial in zip(labelsets, split_list(labels, split_ratio[dataset], size = size)): # dataset을 지정된 비율에 따라 [train, val, test]로 split 한 뒤 더함 
                 whole+=patial
                  
         print("2. save label files")

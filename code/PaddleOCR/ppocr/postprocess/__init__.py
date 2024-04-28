@@ -28,7 +28,7 @@ from .fce_postprocess import FCEPostProcess
 from .rec_postprocess import CTCLabelDecode, AttnLabelDecode, SRNLabelDecode, \
     DistillationCTCLabelDecode, NRTRLabelDecode, SARLabelDecode, \
     SEEDLabelDecode, PRENLabelDecode, ViTSTRLabelDecode, ABINetLabelDecode, \
-    SPINLabelDecode, VLLabelDecode, RFLLabelDecode, SATRNLabelDecode
+    SPINLabelDecode, VLLabelDecode, RFLLabelDecode, SATRNLabelDecode, CTCLabelDecode_Grapheme
 from .cls_postprocess import ClsPostProcess
 from .pg_postprocess import PGPostProcess
 from .vqa_token_ser_layoutlm_postprocess import VQASerTokenLayoutLMPostProcess, DistillationSerPostProcess
@@ -53,7 +53,7 @@ def build_post_process(config, global_config=None):
         'DistillationSerPostProcess', 'DistillationRePostProcess',
         'VLLabelDecode', 'PicoDetPostProcess', 'CTPostProcess',
         'RFLLabelDecode', 'DRRGPostprocess', 'CANLabelDecode',
-        'SATRNLabelDecode'
+        'SATRNLabelDecode', "CTCLabelDecode_Grapheme"
     ]
     # pre, post processing의 경우 설정에 민감하게 바뀐다.
     # 알고리즘이 다른 경우 입력 출력 형태가 다를 수 있어 pre, post에서 이를 맞춰주어야 한다.
@@ -71,5 +71,6 @@ def build_post_process(config, global_config=None):
         config.update(global_config)
     assert module_name in support_dict, Exception(
         'post process only support {}'.format(support_dict))
+    
     module_class = eval(module_name)(**config) # 결국은 eval로 객체를 만들어내고 있네, 그럼 사실 config에 모듈 별로 name만 봐도 어떤걸 쓸 건지 알 수 있겠다.
     return module_class

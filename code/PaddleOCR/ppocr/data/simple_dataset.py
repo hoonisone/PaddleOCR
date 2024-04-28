@@ -36,6 +36,7 @@ class SimpleDataSet(Dataset):
         label_file_list = dataset_config.pop('label_file_list')
         data_source_num = len(label_file_list)
         ratio_list = dataset_config.get("ratio_list", 1.0)
+
         if isinstance(ratio_list, (float, int)):
             ratio_list = [float(ratio_list)] * int(data_source_num)
 
@@ -45,6 +46,7 @@ class SimpleDataSet(Dataset):
         self.data_dir = dataset_config['data_dir']
         self.do_shuffle = loader_config['shuffle']
         self.seed = seed
+
         logger.info("Initialize indexs of datasets:%s" % label_file_list)
         self.data_lines = self.get_image_info_list(label_file_list, ratio_list)
         self.data_idx_order_list = list(range(len(self.data_lines)))
@@ -54,8 +56,8 @@ class SimpleDataSet(Dataset):
         self.set_epoch_as_seed(self.seed, dataset_config)
 
         self.ops = create_operators(dataset_config['transforms'], global_config)
-        self.ext_op_transform_idx = dataset_config.get("ext_op_transform_idx",
-                                                       2)
+        self.ext_op_transform_idx = dataset_config.get("ext_op_transform_idx",2)
+
         self.need_reset = True in [x < 1 for x in ratio_list]
 
     def set_epoch_as_seed(self, seed, dataset_config):
@@ -67,8 +69,10 @@ class SimpleDataSet(Dataset):
                 shrink_map_id = [index
                     for index, dictionary in enumerate(dataset_config['transforms'])
                     if 'MakeShrinkMap' in dictionary][0]
+
                 dataset_config['transforms'][border_map_id]['MakeBorderMap'][
                     'epoch'] = seed if seed is not None else 0
+
                 dataset_config['transforms'][shrink_map_id]['MakeShrinkMap'][
                     'epoch'] = seed if seed is not None else 0
             except Exception as E:
@@ -140,6 +144,7 @@ class SimpleDataSet(Dataset):
         return ext_data
 
     def __getitem__(self, idx):
+        
         file_idx = self.data_idx_order_list[idx]
         data_line = self.data_lines[file_idx]
         try:
@@ -164,6 +169,7 @@ class SimpleDataSet(Dataset):
                 "When parsing line {}, error happened with msg: {}".format(
                     data_line, traceback.format_exc()))
             outs = None
+    
         if outs is None:
             # during evaluation, we should fix the idx to get same results for many times of evaluation.
             rnd_idx = np.random.randint(self.__len__(

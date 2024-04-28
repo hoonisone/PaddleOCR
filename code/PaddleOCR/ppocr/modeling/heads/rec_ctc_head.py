@@ -31,10 +31,12 @@ def get_para_bias_attr(l2_decay, k):
     bias_attr = ParamAttr(regularizer=regularizer, initializer=initializer)
     return [weight_attr, bias_attr]
 
-class GraphemeCTCHead(nn.Layer):
+class FirstCTCHead(nn.Layer):
+    char_set = """!"#$%&'*+-/0123456789:;<=>?ABCDEFGHIJKLMNOPQRSTUVWXYZ[\]^_`abcdefghijklmnopqrstuvwxyz{|}~©°²½ÁÄÅÇÉÍÎÓÖ×ÜßàáâãäåæçèéêëìíîïðñòóôõöøúûüýāăąćČčđēėęěğīİıŁłńňōřŞşŠšţūźżŽžȘșΑΔαλφГОавлорстя​’“”→∇∼「」アカグニランㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ"""
+
     def __init__(self,
-                 in_channels,
-                 out_channels,
+                 in_channels = 64,
+                 out_channels = 215,
                  fc_decay=0.0004,
                  mid_channels=None,
                  return_feats=False,
@@ -72,19 +74,16 @@ class GraphemeCTCHead(nn.Layer):
     def forward(self, x, targets=None):
         
         if self.mid_channels is None: # True
-            print("@1")
             predicts = self.fc(x)
         else:
             x = self.fc1(x)
             predicts = self.fc2(x)
 
         if self.return_feats:    # False
-            print("@2")
             result = (x, predicts)
         else:
             result = predicts
         if not self.training:
-            print("@3")
             predicts = F.softmax(predicts, axis=2)
             result = predicts
 

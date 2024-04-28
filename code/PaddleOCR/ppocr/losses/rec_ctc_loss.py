@@ -45,7 +45,11 @@ class CTCLoss(nn.Layer):
             [N] * B, dtype='int64', place=paddle.CPUPlace())
         labels = batch[1].astype("int32")
         label_lengths = batch[2].astype('int64')
+        # print(predicts, labels, preds_lengths, label_lengths)
+        # exit()
         loss = self.loss_func(predicts, labels, preds_lengths, label_lengths)
+        # preds_lengths = Tensor([128])
+        # label_lengths = Tensor([128])
         if self.use_focal_loss:
             weight = paddle.exp(-loss)
             weight = paddle.subtract(paddle.to_tensor([1.0]), weight)

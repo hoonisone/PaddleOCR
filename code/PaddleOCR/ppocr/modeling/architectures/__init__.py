@@ -24,12 +24,12 @@ from .distillation_model import DistillationModel
 __all__ = ["build_model", "apply_to_static"]
 
 
-def build_model(config):
+def build_model(config, **kwargs):
 
     config = copy.deepcopy(config)
     
     if not "name" in config:
-        arch = BaseModel(config)
+        arch = BaseModel(config, **kwargs)
 
     else:
         name = config.pop("name")

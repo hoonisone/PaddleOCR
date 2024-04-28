@@ -15,7 +15,7 @@
 __all__ = ['build_head']
 
 
-def build_head(config):
+def build_head(config, **kwargs):
     # det head
     from .det_db_head import DBHead, PFHeadLocal
     from .det_east_head import EASTHead
@@ -32,7 +32,7 @@ def build_head(config):
     from .rec_sar_head import SARHead
     from .rec_aster_head import AsterHead
     from .rec_pren_head import PRENHead
-    from .rec_multi_head import MultiHead
+    from .rec_multi_head import MultiHead, MultiHead_Grapheme
     from .rec_spin_att_head import SPINAttentionHead
     from .rec_abinet_head import ABINetHead
     from .rec_robustscanner_head import RobustScannerHead
@@ -56,7 +56,7 @@ def build_head(config):
         'TableAttentionHead', 'SARHead', 'AsterHead', 'SDMGRHead', 'PRENHead',
         'MultiHead', 'ABINetHead', 'TableMasterHead', 'SPINAttentionHead',
         'VLHead', 'SLAHead', 'RobustScannerHead', 'CT_Head', 'RFLHead',
-        'DRRGHead', 'CANHead', 'SATRNHead', 'PFHeadLocal'
+        'DRRGHead', 'CANHead', 'SATRNHead', 'PFHeadLocal', "MultiHead_Grapheme"
     ]
 
     if config['name'] == 'DRRGHead':
@@ -68,5 +68,6 @@ def build_head(config):
     module_name = config.pop('name')
     assert module_name in support_dict, Exception('head only support {}'.format(
         support_dict))
+    config.update(kwargs)
     module_class = eval(module_name)(**config)
     return module_class

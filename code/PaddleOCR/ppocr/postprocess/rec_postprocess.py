@@ -128,6 +128,58 @@ class CTCLabelDecode(BaseRecLabelDecode):
         dict_character = ['blank'] + dict_character
         return dict_character
 
+class CTCLabelDecode_Grapheme(object):
+    """ Convert between text-label and text-index """
+
+    def __init__(self, handling_grapheme, character_dict_path=None, use_space_char=False,
+                 **kwargs):
+        self.handling_grapheme = handling_grapheme
+        
+        self.grapheme_to_idx = {grapheme:i for i, grapheme in enumerate(["first", "second", "third", "origin"])}
+        
+        self.decode_dict = {
+            grphame:CTCLabelDecode(character_dict_path = character_dict_path[self.grapheme_to_idx[grphame]],
+                                           use_space_char = use_space_char,
+                                           **kwargs)
+            for grphame in self.handling_grapheme
+        }
+        # self.first_decode = CTCLabelDecode(character_dict_path = character_dict_path[0],
+        #                                    use_space_char = use_space_char,
+        #                                    **kwargs)
+        # self.second_decode = CTCLabelDecode(character_dict_path = character_dict_path[1],
+        #                             use_space_char = use_space_char,
+        #                             **kwargs)
+        # self.third_decode = CTCLabelDecode(character_dict_path = character_dict_path[2],
+        #                     use_space_char = use_space_char,
+        #                     **kwargs)
+        # self.origin_decode = CTCLabelDecode(character_dict_path = character_dict_path[3],
+        #                     use_space_char = use_space_char,
+        #                     **kwargs)
+        self.character = {grapheme: self.decode_dict[grapheme].character for grapheme in self.handling_grapheme}
+        # self.character = [self.first_decode.character, self.second_decode.character, self.third_decode.character, self.origin_decode.character] # character 속성이 있는지를 통해 조건을 체크하는 부분이 있어서 CTCLabelDecode와 동일하게 생성해줌
+    def __call__(self, preds, label=None, *args, **kwargs):
+        result = dict()
+        for grapheme in self.handling_grapheme:
+            idx = self.grapheme_to_idx[grapheme]
+            result[grapheme] = self.decode_dict[grapheme](preds[idx], label=label[idx], *args, **kwargs)
+        
+        # first = self.first_decode(preds[0], label=label[0], *args, **kwargs)
+        # second = self.second_decode(preds[1], label=label[1], *args, **kwargs)
+        # third = self.third_decode(preds[2], label=label[2], *args, **kwargs)
+        
+        
+        # texts = {"first":first[0], "second":second[0], "third":third[0]}
+        # labels = {"first":first[1], "second":second[1], "third":third[1]}
+        
+        texts = {grapheme: result[grapheme][0] for grapheme in self.handling_grapheme}
+        labels = {grapheme: result[grapheme][1] for grapheme in self.handling_grapheme}
+        
+        return texts, labels
+
+    def add_special_char(self, dict_character):
+        dict_character = ['blank'] + dict_character
+        return dict_character
+
 
 class DistillationCTCLabelDecode(CTCLabelDecode):
     """

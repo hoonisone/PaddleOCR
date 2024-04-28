@@ -27,6 +27,7 @@ from ppocr.modeling.necks.rnn import Im2Seq, EncoderWithRNN, EncoderWithFC, Sequ
 from .rec_ctc_head import CTCHead
 from .rec_sar_head import SARHead
 from .rec_nrtr_head import Transformer
+import copy
 
 class FCTranspose(nn.Layer):
     def __init__(self, in_channels, out_channels, only_transpose=False):
@@ -43,6 +44,14 @@ class FCTranspose(nn.Layer):
 
 
 class MultiHead(nn.Layer):
+    """ 현재 head 종류는 3개 밖에 없어보임
+        이때 SARHead와 NRTRHead는 둘 중 하나만 사용하는 것 같으며
+        CTC loss는 무조건 사용인 듯
+        또한 SARHead와 NRTRHead는 학습 할 때만 사용하는 것 같음
+        보조 도구로 쓰이는 것이며
+        실제 추론시에는 CTCLoss만 가지고 하는 듯 
+    """
+    
     def __init__(self, in_channels, out_channels_list, **kwargs):
         super().__init__()
         self.head_list = kwargs.pop('head_list')
@@ -90,6 +99,8 @@ class MultiHead(nn.Layer):
 
 
     def forward(self, x, targets=None):
+        # print("MultiHead Exit")
+        # exit()
         # print("1")
         # print(x.shape)
         
@@ -121,4 +132,41 @@ class MultiHead(nn.Layer):
             gtc_out = self.gtc_head(self.before_gtc(x), targets[1:])
             head_out['nrtr'] = gtc_out
         # exit()
+        return head_out
+
+
+class MultiHead_Grapheme(nn.Layer):
+    """ 현재 head 종류는 3개 밖에 없어보임
+        이때 SARHead와 NRTRHead는 둘 중 하나만 사용하는 것 같으며
+        CTC loss는 무조건 사용인 듯
+        또한 SARHead와 NRTRHead는 학습 할 때만 사용하는 것 같음
+        보조 도구로 쓰이는 것이며
+        실제 추론시에는 CTCLoss만 가지고 하는 듯 
+    """
+    
+    def __init__(self, in_channels, out_channels_list, **kwargs):
+        super().__init__()
+        self.handling_grapheme = kwargs["handling_grapheme"]
+        
+        self.head_dict = dict()
+        
+        for i, grapheme in enumerate(self.handling_grapheme):
+            channels = {k:v[i] for k, v in out_channels_list.items()}
+            self.head_dict[grapheme] = MultiHead(in_channels, channels, **copy.deepcopy(kwargs))
+
+    def forward(self, x, targets=None):
+        def get_targets(targets, idx):
+            if targets == None:
+                return None
+            else:
+                return [
+                    targets[idx]["label_ctc"],
+                    targets[idx]["label_sar"],
+                    targets[idx]["length"],
+                    targets[4]
+                ]
+        head_out = dict()        
+        for i, grapheme in enumerate(self.handling_grapheme):
+            head_out[grapheme] = self.head_dict[grapheme](x, targets = get_targets(targets, i))
+
         return head_out

@@ -85,3 +85,36 @@ class MultiLoss(nn.Layer):
         self.total_loss['loss'] = total_loss
         # 결과적으로 로스가 여러개 이기 때문에 dict로 전달하며, total loss를 계산해서 넘겨주네
         return self.total_loss
+    
+
+class MultiLoss_Grapheme(nn.Layer):
+    def __init__(self, handling_grapheme, **kwargs):
+        super().__init__()
+        self.handling_grapheme = handling_grapheme
+        
+        def extract_kwargs(kwargs, idx):
+            import copy
+            kwargs = copy.deepcopy(kwargs)
+            kwargs["loss_config_list"][1]["SARLoss"]["ignore_index"] = kwargs["loss_config_list"][1]["SARLoss"]["ignore_index"][idx]
+            return kwargs
+        
+        self.multiloss_dict = {
+            grapheme:MultiLoss(**extract_kwargs(kwargs, i))
+            for i, grapheme in enumerate(self.handling_grapheme)    
+        }
+        
+    def forward(self, predicts, batch):
+        def get_batch(batch, idx):
+            return [
+                batch[0],
+                batch[idx+1]["label_ctc"],
+                batch[idx+1]["label_sar"],
+                batch[idx+1]["length"],
+                batch[5]
+            ]
+            
+        
+        total_loss = {grapheme: self.multiloss_dict[grapheme](predicts[grapheme], get_batch(batch, i)) for i, grapheme in enumerate(self.handling_grapheme)}
+        total_loss["loss"] = sum([total_loss[grapheme]["loss"] for grapheme in self.handling_grapheme])/len(self.handling_grapheme)
+        
+        return total_loss

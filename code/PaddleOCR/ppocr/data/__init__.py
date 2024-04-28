@@ -83,7 +83,7 @@ def set_signal_handlers():
 
 def build_dataloader(config, mode, device, logger, seed=None):
     config = copy.deepcopy(config)
-
+    
     support_dict = [
         'SimpleDataSet',
         'LMDBDataSet',
@@ -98,17 +98,20 @@ def build_dataloader(config, mode, device, logger, seed=None):
         'PubTabTableRecDataset',
         'KieDataset',
     ]
+
     module_name = config[mode]['dataset']['name']
     assert module_name in support_dict, Exception(      # 데이터 셋 이름 예외 체크
         'DataSet only support {}'.format(support_dict))
     assert mode in ['Train', 'Eval', 'Test'
                     ], "Mode should be Train, Eval or Test." # 모드 이름 예외 체크
+    
     # eval(module_name): "SimpleDataSet"
     # type(eval(module_name)): <class 'str'>
+
     dataset = eval(module_name)(config, mode, logger, seed)
+    
     # eval(module_name): <class 'ppocr.data.simple_dataset.SimpleDataSet'>
     # type(eval(module_name)): <class 'type'>
-    
     loader_config = config[mode]['loader']
     batch_size = loader_config['batch_size_per_card']
     drop_last = loader_config['drop_last']
@@ -118,14 +121,14 @@ def build_dataloader(config, mode, device, logger, seed=None):
         use_shared_memory = loader_config['use_shared_memory']
     else:
         use_shared_memory = True
-
-    if mode == "Train":
+        
+    if mode == "Train": # Hit
         # Distribute data to multiple cards
         if 'sampler' in config[mode]:
             config_sampler = config[mode]['sampler']
             sampler_name = config_sampler.pop("name")
             batch_sampler = eval(sampler_name)(dataset, **config_sampler)
-        else:
+        else: # Hit
             batch_sampler = DistributedBatchSampler(
                 dataset=dataset,
                 batch_size=batch_size,
@@ -138,7 +141,7 @@ def build_dataloader(config, mode, device, logger, seed=None):
             batch_size=batch_size,
             shuffle=shuffle,
             drop_last=drop_last)
-
+    
     if 'collate_fn' in loader_config:
         from . import collate_fn
         collate_fn = getattr(collate_fn, loader_config['collate_fn'])()

@@ -192,6 +192,7 @@ def train(config,
           amp_custom_black_list=[],
           amp_custom_white_list=[],
           amp_dtype='float16'):
+
     cal_metric_during_train = config['Global'].get('cal_metric_during_train',
                                                    False)
     calc_epoch_interval = config['Global'].get('calc_epoch_interval', 1)
@@ -270,7 +271,6 @@ def train(config,
                 config, 'Train', device, logger, seed=epoch)
             max_iter = len(train_dataloader) - 1 if platform.system(
             ) == "Windows" else len(train_dataloader)
-
         for idx, batch in enumerate(train_dataloader):
             profiler.add_profiler_step(profiler_options)
             train_reader_cost += time.time() - reader_start
@@ -289,6 +289,7 @@ def train(config,
                         dtype=amp_dtype):
                     if model_type == 'table' or extra_input:
                         preds = model(images, data=batch[1:])
+                        
                     elif model_type in ["kie"]:
                         preds = model(batch)
                     elif algorithm in ['CAN']:
@@ -304,6 +305,7 @@ def train(config,
             else:
                 if model_type == 'table' or extra_input: # 현재 사용하는 rec는 extra_input이 있음
                     preds = model(images, data=batch[1:])
+                    
                 elif model_type in ["kie", 'sr']:
                     preds = model(batch)
                 elif algorithm in ['CAN']:
@@ -355,42 +357,88 @@ def train(config,
                 # Image.fromarray((batch[2][0].numpy()*255).astype(np.uint8)).save("/home/label_threshold_mask.png")
                 # Image.fromarray((batch[3][0].numpy()*255).astype(np.uint8)).save("/home/label_shrink_map.png")
                 # Image.fromarray((batch[4][0].numpy()*255).astype(np.uint8)).save("/home/label_shrink_mask.png")
-                
+                # print("###")
+                # # exit()
+                # print(type(preds))
+                # print(preds.keys())
                 loss = loss_class(preds, batch)
+                
                 # loss_class의 인자가 preds와 label인데
                 # label위치에 batch를 주는 이유는
                 # batch 안에 label 정보가 포함되어 있다는 건가?
-                
                 avg_loss = loss['loss']
                 avg_loss.backward()
                 optimizer.step()
-
+            
             optimizer.clear_grad()
-
-            if cal_metric_during_train and epoch % calc_epoch_interval == 0:  # only rec and cls need
-                batch = [item.numpy() for item in batch]
-                if model_type in ['kie', 'sr']:
-                    eval_class(preds, batch)
-                elif model_type in ['table']:
-                    post_result = post_process_class(preds, batch)
-                    eval_class(post_result, batch)
-                elif algorithm in ['CAN']:
-                    model_type = 'can'
-                    eval_class(preds[0], batch[2:], epoch_reset=(idx == 0))
+            
+            if cal_metric_during_train and epoch % calc_epoch_interval == 0:  # only rec and cls need (True)
+                if "use_grapheme" in config['Global'] and config['Global']["use_grapheme"]:
+                    batch[0] = batch[0].numpy()
+                    batch[1] = {k:v.numpy() for k, v in batch[1].items()}
+                    batch[2] = {k:v.numpy() for k, v in batch[2].items()}
+                    batch[3] = {k:v.numpy() for k, v in batch[3].items()}
+                    batch[4] = {k:v.numpy() for k, v in batch[4].items()}
+                    batch[5] = batch[5].numpy()
+                    if model_type in ['kie', 'sr']:
+                        eval_class(preds, batch)
+                    elif model_type in ['table']:
+                        post_result = post_process_class(preds, batch)
+                        eval_class(post_result, batch)
+                    elif algorithm in ['CAN']:
+                        model_type = 'can'
+                        eval_class(preds[0], batch[2:], epoch_reset=(idx == 0))
+                    else: # True
+                        if config['Loss']['name'] in ['MultiLoss', 'MultiLoss_Grapheme']:  # for multi head loss (True)                            
+                            preds_args = [preds[name]["ctc"] for name in  config["Global"]["handling_grapheme"]]
+                            labels_args = [batch[i]["label_ctc"] for i in [1, 2, 3, 4]]
+                            
+                            post_result = post_process_class(
+                                preds_args, labels_args)  # for CTC head out
+                            
+                        elif config['Loss']['name'] in ['VLLoss']:
+                            post_result = post_process_class(preds, batch[1],
+                                                            batch[-1])
+                        else:
+                            post_result = post_process_class(preds, batch[1])
+                            
+                        eval_class(post_result, batch)
+                    metric = eval_class.get_metric()
+                    train_stats.update(metric)
+                    
                 else:
-                    if config['Loss']['name'] in ['MultiLoss', 'MultiLoss_v2'
-                                                  ]:  # for multi head loss
-                        post_result = post_process_class(
-                            preds['ctc'], batch[1])  # for CTC head out
-                    elif config['Loss']['name'] in ['VLLoss']:
-                        post_result = post_process_class(preds, batch[1],
-                                                         batch[-1])
-                    else:
-                        post_result = post_process_class(preds, batch[1])
-                    eval_class(post_result, batch)
-                metric = eval_class.get_metric()
-                train_stats.update(metric)
-
+                    batch = [item.numpy() for item in batch]
+                    # exit()
+                    # # print(len(batch))
+                    # batch[0] = batch[0].numpy()
+                    # print(batch[1])
+                    # batch[1] = {k:v.numpy() for k, v in batch[1].items()}
+                    # batch[2] = {k:v.numpy() for k, v in batch[2].items()}
+                    # batch[3] = {k:v.numpy() for k, v in batch[3].items()}
+                    # batch[4] = batch[4].numpy()
+                    # print(batch[1].keys())
+                    # exit()
+                    if model_type in ['kie', 'sr']:
+                        eval_class(preds, batch)
+                    elif model_type in ['table']:
+                        post_result = post_process_class(preds, batch)
+                        eval_class(post_result, batch)
+                    elif algorithm in ['CAN']:
+                        model_type = 'can'
+                        eval_class(preds[0], batch[2:], epoch_reset=(idx == 0))
+                    else: # True
+                        if config['Loss']['name'] in ['MultiLoss', 'MultiLoss_v2']:  # for multi head loss (True)
+                            post_result = post_process_class(
+                                preds['ctc'], batch[1])  # for CTC head out
+                        elif config['Loss']['name'] in ['VLLoss']:
+                            post_result = post_process_class(preds, batch[1],
+                                                            batch[-1])
+                        else:
+                            post_result = post_process_class(preds, batch[1])
+                        eval_class(post_result, batch)
+                    metric = eval_class.get_metric()
+                    train_stats.update(metric)
+        
             train_batch_time = time.time() - reader_start
             train_batch_cost += train_batch_time
             eta_meter.update(train_batch_time)
@@ -401,6 +449,12 @@ def train(config,
                 lr_scheduler.step()
 
             # logger and visualdl
+            
+            
+            for grapheme in config["Global"].get("handling_grapheme", []):
+                loss[f"{grapheme}_CTCLoss"] = loss[grapheme]["CTCLoss"]
+                loss[f"{grapheme}_SARLoss"] = loss[grapheme]["SARLoss"]
+                del loss[grapheme]
             stats = {
                 k: float(v) if v.shape == [] else v.numpy().mean()
                 for k, v in loss.items()
@@ -500,6 +554,8 @@ def train(config,
                         metadata=best_model_dict)
 
             reader_start = time.time()
+            
+            
         if dist.get_rank() == 0:
             save_model(
                 model,

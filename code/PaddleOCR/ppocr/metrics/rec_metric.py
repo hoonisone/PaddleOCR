@@ -37,6 +37,7 @@ class RecMetric(object):
         return text.lower()
 
     def __call__(self, pred_label, *args, **kwargs):
+        
         preds, labels = pred_label
         # preds: [(test, acc), ...]
         # labels: [(test, acc), ...]
@@ -81,6 +82,44 @@ class RecMetric(object):
         self.all_num = 0
         self.norm_edit_dis = 0
 
+class RecMetric_Grapheme(object):
+    def __init__(self,
+                 handling_grapheme,
+                 main_indicator='acc',
+                 is_filter=False,
+                 ignore_space=True,
+                 **kwargs):
+        self.handling_grapheme = handling_grapheme 
+        self.inner_recmetric = RecMetric(main_indicator='acc', is_filter=False, ignore_space=True, **kwargs)
+    
+    @property
+    def main_indicator(self):
+        return self.inner_recmetric.main_indicator
+
+    def __call__(self, pred_label, *args, **kwargs):
+        preds, labels = pred_label
+        total_metric = dict()
+        
+        for g in self.handling_grapheme:
+            metric = self.inner_recmetric([preds[g], labels[g]])    
+            total_metric[f"{g}_acc"] = metric["acc"]
+            total_metric[f"{g}_norm_edit_dis"] = metric["norm_edit_dis"]
+        
+        pure_grapheme = list(set(["first", "second", "thrid"]) & set(self.handling_grapheme))
+        total_metric["grapheme_acc"] = sum([total_metric[f"{g}_acc"] for g in pure_grapheme])
+        total_metric["grapheme_norm_edit_dis"] = sum([total_metric[f"{g}_norm_edit_dis"] for g in pure_grapheme])
+
+        self.metric = total_metric
+        
+    def get_metric(self):
+        self.inner_recmetric.get_metric()
+        metric = self.metric
+        self.reset()
+        return metric
+        
+    def reset(self):
+        self.metric = None
+        
 
 class CNTMetric(object):
     def __init__(self, main_indicator='acc', **kwargs):

@@ -22,7 +22,7 @@ import copy
 __all__ = ["build_metric"]
 
 from .det_metric import DetMetric, DetFCEMetric
-from .rec_metric import RecMetric, CNTMetric, CANMetric
+from .rec_metric import RecMetric, CNTMetric, CANMetric, RecMetric_Grapheme
 from .cls_metric import ClsMetric
 from .e2e_metric import E2EMetric
 from .distillation_metric import DistillationMetric
@@ -34,14 +34,15 @@ from .sr_metric import SRMetric
 from .ct_metric import CTMetric
 
 
-def build_metric(config):
+def build_metric(config, **kwargs):
     support_dict = [
         "DetMetric", "DetFCEMetric", "RecMetric", "ClsMetric", "E2EMetric",
         "DistillationMetric", "TableMetric", 'KIEMetric', 'VQASerTokenMetric',
-        'VQAReTokenMetric', 'SRMetric', 'CTMetric', 'CNTMetric', 'CANMetric'
+        'VQAReTokenMetric', 'SRMetric', 'CTMetric', 'CNTMetric', 'CANMetric', "RecMetric_Grapheme"
     ]
 
     config = copy.deepcopy(config)
+    config.update(kwargs)
     module_name = config.pop("name")
     assert module_name in support_dict, Exception(
         "metric only support {}".format(support_dict))

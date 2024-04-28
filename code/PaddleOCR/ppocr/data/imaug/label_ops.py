@@ -1243,9 +1243,11 @@ class MultiLabelEncode(BaseRecLabelEncode):
                  use_space_char=False,
                  gtc_encode=None,
                  **kwargs):
+        
         super(MultiLabelEncode, self).__init__(
             max_text_length, character_dict_path, use_space_char)
-
+        
+        
         self.ctc_encode = CTCLabelEncode(max_text_length, character_dict_path,
                                          use_space_char, **kwargs)
         self.gtc_encode_type = gtc_encode
@@ -1266,12 +1268,70 @@ class MultiLabelEncode(BaseRecLabelEncode):
         gtc = self.gtc_encode.__call__(data_gtc)
         if ctc is None or gtc is None:
             return None
+
         data_out['label_ctc'] = ctc['label']
         if self.gtc_encode_type is not None:
             data_out['label_gtc'] = gtc['label']
         else:
             data_out['label_sar'] = gtc['label']
         data_out['length'] = ctc['length']
+        return data_out
+
+class MultiLabelEncode_Grapheme(object):
+    def __init__(self,
+                 max_text_length,
+                 character_dict_path=None,
+                 use_space_char=False,
+                 gtc_encode=None,
+                 **kwargs):
+        
+        self.first_grapheme_encoder = MultiLabelEncode(max_text_length, 
+                                                       character_dict_path = character_dict_path[0], 
+                                                       use_space_char = use_space_char, 
+                                                       gtc_encode = gtc_encode,
+                                                **kwargs)
+        self.second_grapheme_encoder = MultiLabelEncode(max_text_length, 
+                                                character_dict_path = character_dict_path[1], 
+                                                use_space_char = use_space_char, 
+                                                gtc_encode = gtc_encode,
+                                                **kwargs)
+        self.third_grapheme_encoder = MultiLabelEncode(max_text_length, 
+                                        character_dict_path = character_dict_path[2], 
+                                        use_space_char = use_space_char, 
+                                        gtc_encode = gtc_encode,
+                                        **kwargs)
+        self.origin_grapheme_encoder = MultiLabelEncode(max_text_length, 
+                                character_dict_path = character_dict_path[3], 
+                                use_space_char = use_space_char, 
+                                gtc_encode = gtc_encode,
+                                **kwargs)
+
+    def __call__(self, data):
+        
+        data_copy = copy.deepcopy(data)
+        data_copy["label"] = data["label"]["first"]
+        first_data = self.first_grapheme_encoder(data_copy)
+        
+        data_copy = copy.deepcopy(data)
+        data_copy["label"] = data["label"]["second"]
+        second_data = self.second_grapheme_encoder(data_copy)
+        
+        data_copy = copy.deepcopy(data)
+        data_copy["label"] = data["label"]["third"]
+        third_data = self.third_grapheme_encoder(data_copy)
+        
+        data_copy = copy.deepcopy(data)
+        data_copy["label"] = data["label"]["origin"]
+        origin_data = self.origin_grapheme_encoder(data_copy)
+        
+        data_out = dict()
+        data_out['img_path'] = first_data["img_path"]
+        data_out['image'] = first_data['image']
+        data_out['first_label'] = {name:first_data[name] for name in ['label_ctc', 'label_gtc', 'label_sar', 'length'] if name in first_data.keys()}
+        data_out['second_label'] = {name:second_data[name] for name in ['label_ctc', 'label_gtc', 'label_sar', 'length'] if name in second_data.keys()}
+        data_out['third_label'] = {name:third_data[name] for name in ['label_ctc', 'label_gtc', 'label_sar', 'length'] if name in third_data.keys()}
+        data_out['origin_label'] = {name:origin_data[name] for name in ['label_ctc', 'label_gtc', 'label_sar', 'length'] if name in origin_data.keys()}
+        
         return data_out
 
 

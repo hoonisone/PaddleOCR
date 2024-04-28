@@ -36,7 +36,7 @@ from .rec_ce_loss import CELoss
 from .rec_sar_loss import SARLoss
 from .rec_aster_loss import AsterLoss
 from .rec_pren_loss import PRENLoss
-from .rec_multi_loss import MultiLoss
+from .rec_multi_loss import MultiLoss, MultiLoss_Grapheme
 from .rec_vl_loss import VLLoss
 from .rec_spin_att_loss import SPINAttentionLoss
 from .rec_rfl_loss import RFLLoss
@@ -68,7 +68,7 @@ from .stroke_focus_loss import StrokeFocusLoss
 from .text_focus_loss import TelescopeLoss
 
 
-def build_loss(config):
+def build_loss(config, **kwargs):
     support_dict = [
         'DBLoss', 'PSELoss', 'EASTLoss', 'SASTLoss', 'FCELoss', 'CTCLoss',
         'ClsLoss', 'AttentionLoss', 'SRNLoss', 'PGLoss', 'CombinedLoss',
@@ -76,9 +76,10 @@ def build_loss(config):
         'VQASerTokenLayoutLMLoss', 'LossFromOutput', 'PRENLoss', 'MultiLoss',
         'TableMasterLoss', 'SPINAttentionLoss', 'VLLoss', 'StrokeFocusLoss',
         'SLALoss', 'CTLoss', 'RFLLoss', 'DRRGLoss', 'CANLoss', 'TelescopeLoss',
-        'SATRNLoss', 'NRTRLoss'
+        'SATRNLoss', 'NRTRLoss', "MultiLoss_Grapheme"
     ]
     config = copy.deepcopy(config)
+    config.update(kwargs)
     module_name = config.pop('name')
     assert module_name in support_dict, Exception('loss only support {}'.format(
         support_dict))

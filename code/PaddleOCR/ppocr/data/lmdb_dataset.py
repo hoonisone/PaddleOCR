@@ -27,14 +27,13 @@ from .imaug import transform, create_operators
 class LMDBDataSet(Dataset):
     def __init__(self, config, mode, logger, seed=None):
         super(LMDBDataSet, self).__init__()
-
+        
         global_config = config['Global']
         dataset_config = config[mode]['dataset']
         loader_config = config[mode]['loader']
         batch_size = loader_config['batch_size_per_card']
         data_dir = dataset_config['data_dir']
         self.do_shuffle = loader_config['shuffle']
-
         self.lmdb_sets = self.load_hierarchical_lmdb_dataset(data_dir)
         logger.info("Initialize indexs of datasets:%s" % data_dir)
         self.data_idx_order_list = self.dataset_traversal()
@@ -50,7 +49,9 @@ class LMDBDataSet(Dataset):
     def load_hierarchical_lmdb_dataset(self, data_dir):
         lmdb_sets = {}
         dataset_idx = 0
+        print(data_dir)
         for dirpath, dirnames, filenames in os.walk(data_dir + '/'):
+
             if not dirnames:
                 env = lmdb.open(
                     dirpath,

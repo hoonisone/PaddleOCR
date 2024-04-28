@@ -26,6 +26,8 @@ sys.path.insert(0, os.path.abspath(os.path.join(__dir__, '..')))
 import yaml
 import paddle
 import paddle.distributed as dist
+import numpy as np
+
 
 from ppocr.data import build_dataloader, set_signal_handlers
 from ppocr.modeling.architectures import build_model
@@ -42,6 +44,7 @@ dist.get_world_size()
 
 
 def main(config, device, logger, vdl_writer):
+
     # init dist environment
     if config['Global']['distributed']:
         dist.init_parallel_env()
@@ -51,7 +54,9 @@ def main(config, device, logger, vdl_writer):
 
     # build dataloader
     set_signal_handlers()
+    
     train_dataloader = build_dataloader(config, 'Train', device, logger)
+
     if len(train_dataloader) == 0:
         logger.error(
             "No Images in train dataset, please ensure\n" +
@@ -72,11 +77,17 @@ def main(config, device, logger, vdl_writer):
 
     # build model
     # for rec algorithm
-    if hasattr(post_process_class, 'character'):
+    
+    if hasattr(post_process_class, 'character'): # True
+        character = getattr(post_process_class, 'character')
+        if "use_grapheme" in global_config and global_config["use_grapheme"]:    
+            char_num= np.array([len(character[grapheme]) for grapheme in global_config["handling_grapheme"]])
+            # char_num = np.array([len(x) for x in character])
 
-        char_num = len(getattr(post_process_class, 'character'))
-        if config['Architecture']["algorithm"] in ["Distillation",
-                                                   ]:  # distillation model
+        else:
+            char_num = len(character)
+
+        if config['Architecture']["algorithm"] in ["Distillation",]:  # distillation model
             for key in config['Architecture']["Models"]:
                 if config['Architecture']['Models'][key]['Head'][
                         'name'] == 'MultiHead':  # for multi head
@@ -88,6 +99,7 @@ def main(config, device, logger, vdl_writer):
                         char_num = char_num - 3
                     out_channels_list = {}
                     out_channels_list['CTCLabelDecode'] = char_num
+                    out_channels_list['CTCLabelDecode_Grapheme'] = char_num
                     # update SARLoss params
                     if list(config['Loss']['loss_config_list'][-1].keys())[
                             0] == 'DistillationSARLoss':
@@ -105,15 +117,14 @@ def main(config, device, logger, vdl_writer):
                     config['Architecture']["Models"][key]["Head"][
                         'out_channels'] = char_num
 
-        elif config['Architecture']['Head'][
-                'name'] == 'MultiHead':  # for multi head
-
+        elif config['Architecture']['Head']['name'] in ['MultiHead', 'MultiHead_Grapheme']:  # for multi head ############ Check
             if config['PostProcess']['name'] == 'SARLabelDecode':
                 char_num = char_num - 2
             if config['PostProcess']['name'] == 'NRTRLabelDecode':
                 char_num = char_num - 3
             out_channels_list = {}
             out_channels_list['CTCLabelDecode'] = char_num
+            out_channels_list['CTCLabelDecode_Grapheme'] = char_num
             # update SARLoss params
             if list(config['Loss']['loss_config_list'][1].keys())[
                     0] == 'SARLoss':
@@ -136,28 +147,28 @@ def main(config, device, logger, vdl_writer):
         if config['PostProcess']['name'] == 'SARLabelDecode':  # for SAR model
             config['Loss']['ignore_index'] = char_num - 1
 
-    model = build_model(config['Architecture'])
-
+    model = build_model(config['Architecture'], **global_config)
+    
     use_sync_bn = config["Global"].get("use_sync_bn", False)
     if use_sync_bn:
         model = paddle.nn.SyncBatchNorm.convert_sync_batchnorm(model)
         logger.info('convert_sync_batchnorm')
-
+    
     model = apply_to_static(model, config, logger)
-
+    
     # build loss
-    loss_class = build_loss(config['Loss'])
-
+    loss_class = build_loss(config['Loss'], **global_config)
+    
     # build optim
     optimizer, lr_scheduler = build_optimizer(
         config['Optimizer'],
         epochs=config['Global']['epoch_num'],
         step_each_epoch=len(train_dataloader),
         model=model)
-
+    
     # build metric
-    eval_class = build_metric(config['Metric'])
-
+    eval_class = build_metric(config['Metric'], **global_config)
+    
     logger.info('train dataloader has {} iters'.format(len(train_dataloader)))
     if valid_dataloader is not None:
         logger.info('valid dataloader has {} iters'.format(
@@ -196,12 +207,14 @@ def main(config, device, logger, vdl_writer):
     
     pre_best_model_dict = load_model(config, model, optimizer,
                                      config['Architecture']["model_type"])
+    
     # print(model)
     # return
 
     if config['Global']['distributed']:
         model = paddle.DataParallel(model)
     # start train
+    
     program.train(config, train_dataloader, valid_dataloader, device, model,
                   loss_class, optimizer, lr_scheduler, post_process_class,
                   eval_class, pre_best_model_dict, logger, vdl_writer, scaler,
