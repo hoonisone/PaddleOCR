@@ -182,7 +182,7 @@ class ABINetHead(nn.Layer):
                  dropout=0.1,
                  max_length=25,
                  use_lang=False,
-                 iter_size=1):
+                 iter_size=1, **kwargs):
         super().__init__()
         self.max_length = max_length + 1
         self.pos_encoder = PositionalEncoding(

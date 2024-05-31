@@ -123,5 +123,5 @@ class BaseModel(nn.Layer):
                 return x
             else:
                 return {final_name: x}
-        else:
+        else: # True
             return x

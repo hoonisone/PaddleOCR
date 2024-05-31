@@ -272,12 +272,13 @@ def train(config,
             max_iter = len(train_dataloader) - 1 if platform.system(
             ) == "Windows" else len(train_dataloader)
         for idx, batch in enumerate(train_dataloader):
+
             profiler.add_profiler_step(profiler_options)
             train_reader_cost += time.time() - reader_start
             if idx >= max_iter:
                 break
             lr = optimizer.get_lr()
-            images = batch[0]
+            images = batch["image"]
             if use_srn:
                 model_average = True
             # use amp
@@ -304,7 +305,18 @@ def train(config,
                 scaler.minimize(optimizer, scaled_avg_loss)
             else:
                 if model_type == 'table' or extra_input: # 현재 사용하는 rec는 extra_input이 있음
-                    preds = model(images, data=batch[1:])
+                    
+                    # preds = preds["first"]
+                    # x = batch["first_label"]
+                    # del batch["first_label"]
+                    # batch.update(x)
+                    
+                    # print(batch.keys())
+                    # exit()
+                    preds = model(images, data=batch)
+                    # x = preds["first"]
+                    # del preds["first"]
+                    # preds.update(x)
                     
                 elif model_type in ["kie", 'sr']:
                     preds = model(batch)
@@ -313,6 +325,8 @@ def train(config,
                 else:
 
                     preds = model(images)             # 현재 DB 알고리즘 사용 중  
+                    
+                
                 # print(preds)
                 # len(batch)    : 5
                 # type(batch)   : list
@@ -361,25 +375,31 @@ def train(config,
                 # # exit()
                 # print(type(preds))
                 # print(preds.keys())
-                loss = loss_class(preds, batch)
                 
-                # loss_class의 인자가 preds와 label인데
-                # label위치에 batch를 주는 이유는
-                # batch 안에 label 정보가 포함되어 있다는 건가?
+
+                
+                
+                loss = loss_class(preds, batch)
                 avg_loss = loss['loss']
+                # avg_loss = preds["origin"]["ctc"].sum()
+                # loss["test"] = avg_loss
+
                 avg_loss.backward()
                 optimizer.step()
+                
             
             optimizer.clear_grad()
             
             if cal_metric_during_train and epoch % calc_epoch_interval == 0:  # only rec and cls need (True)
                 if "use_grapheme" in config['Global'] and config['Global']["use_grapheme"]:
-                    batch[0] = batch[0].numpy()
-                    batch[1] = {k:v.numpy() for k, v in batch[1].items()}
-                    batch[2] = {k:v.numpy() for k, v in batch[2].items()}
-                    batch[3] = {k:v.numpy() for k, v in batch[3].items()}
-                    batch[4] = {k:v.numpy() for k, v in batch[4].items()}
-                    batch[5] = batch[5].numpy()
+                    for k, v in batch.items():
+                        if isinstance(v, list):
+                            continue
+                        elif isinstance(v, dict):
+                            batch[k] = {k:_v.numpy() for k, _v in v.items()}
+                        else:
+                            batch[k] = v.numpy()
+
                     if model_type in ['kie', 'sr']:
                         eval_class(preds, batch)
                     elif model_type in ['table']:
@@ -390,12 +410,12 @@ def train(config,
                         eval_class(preds[0], batch[2:], epoch_reset=(idx == 0))
                     else: # True
                         if config['Loss']['name'] in ['MultiLoss', 'MultiLoss_Grapheme']:  # for multi head loss (True)                            
-                            preds_args = [preds[name]["ctc"] for name in  config["Global"]["handling_grapheme"]]
-                            labels_args = [batch[i]["label_ctc"] for i in [1, 2, 3, 4]]
+                            preds_args = {name: preds[name]["ctc"] for name in  config["Global"]["handling_grapheme"]}
+                            labels_args = {f"{name}_label": batch[f"{name}_label"]["label_ctc"] for name in  config["Global"]["handling_grapheme"]}
+                            
                             
                             post_result = post_process_class(
                                 preds_args, labels_args)  # for CTC head out
-                            
                         elif config['Loss']['name'] in ['VLLoss']:
                             post_result = post_process_class(preds, batch[1],
                                                             batch[-1])
@@ -403,11 +423,20 @@ def train(config,
                             post_result = post_process_class(preds, batch[1])
                             
                         eval_class(post_result, batch)
+                    
                     metric = eval_class.get_metric()
                     train_stats.update(metric)
                     
+                    
                 else:
-                    batch = [item.numpy() for item in batch]
+                    for k, v in batch.items():
+                        if isinstance(v, list):
+                            continue
+                        elif isinstance(v, dict):
+                            batch[k] = {k:_v.numpy() for k, _v in v.items()}
+                        else:
+                            batch[k] = v.numpy()
+                    # batch = [item.numpy() for item in batch]
                     # exit()
                     # # print(len(batch))
                     # batch[0] = batch[0].numpy()
@@ -428,13 +457,13 @@ def train(config,
                         eval_class(preds[0], batch[2:], epoch_reset=(idx == 0))
                     else: # True
                         if config['Loss']['name'] in ['MultiLoss', 'MultiLoss_v2']:  # for multi head loss (True)
-                            post_result = post_process_class(
-                                preds['ctc'], batch[1])  # for CTC head out
+                            
+                            post_result = post_process_class(preds['ctc'], batch["label_ctc"])  # for CTC head out
                         elif config['Loss']['name'] in ['VLLoss']:
                             post_result = post_process_class(preds, batch[1],
                                                             batch[-1])
                         else:
-                            post_result = post_process_class(preds, batch[1])
+                            post_result = post_process_class(preds, batch["label"])
                         eval_class(post_result, batch)
                     metric = eval_class.get_metric()
                     train_stats.update(metric)
@@ -504,6 +533,7 @@ def train(config,
                     post_process_class,
                     eval_class,
                     model_type,
+                    config = config,
                     extra_input=extra_input,
                     scaler=scaler,
                     amp_level=amp_level,
@@ -519,8 +549,7 @@ def train(config,
                     log_writer.log_metrics(
                         metrics=cur_metric, prefix="EVAL", step=global_step)
 
-                if cur_metric[main_indicator] >= best_model_dict[
-                        main_indicator]:
+                if cur_metric[main_indicator] >= best_model_dict[main_indicator]:
                     best_model_dict.update(cur_metric)
                     best_model_dict['best_epoch'] = epoch
                     save_model(
@@ -601,6 +630,7 @@ def eval(model,
          post_process_class,
          eval_class,
          model_type=None,
+         config = None,
          extra_input=False,
          scaler=None,
          amp_level='O2',
@@ -620,9 +650,10 @@ def eval(model,
         ) == "Windows" else len(valid_dataloader)
         sum_images = 0
         for idx, batch in enumerate(valid_dataloader):
+            
             if idx >= max_iter:
                 break
-            images = batch[0]
+            images = batch["image"]
             start = time.time()
 
             # use amp
@@ -646,7 +677,7 @@ def eval(model,
                 preds = to_float32(preds)
             else:
                 if model_type == 'table' or extra_input:
-                    preds = model(images, data=batch[1:])
+                    preds = model(images, data=batch)
                 elif model_type in ["kie"]:
                     preds = model(batch)
                 elif model_type in ['can']:
@@ -657,13 +688,20 @@ def eval(model,
                     lr_img = preds["lr_img"]
                 else:
                     preds = model(images)
-
-            batch_numpy = []
-            for item in batch:
-                if isinstance(item, paddle.Tensor):
-                    batch_numpy.append(item.numpy())
+            # batch_numpy = []
+            # for item in batch:
+            #     if isinstance(item, paddle.Tensor):
+            #         batch_numpy.append(item.numpy())
+            #     else:
+            #         batch_numpy.append(item)
+            for k, v in batch.items():
+                if isinstance(v, list):
+                    continue
+                elif isinstance(v, dict):
+                    batch[k] = {k:_v.numpy() for k, _v in v.items()}
                 else:
-                    batch_numpy.append(item)
+                    batch[k] = v.numpy()
+            batch_numpy = batch
             # Obtain usable results from post-processing methods
             total_time += time.time() - start
             # Evaluate the results of the current batch
@@ -671,14 +709,24 @@ def eval(model,
                 if post_process_class is None:
                     eval_class(preds, batch_numpy)
                 else:
-                    post_result = post_process_class(preds, batch_numpy)
+                    preds_args = {name: preds[name]["ctc"] for name in  config["Global"]["handling_grapheme"]}
+                    labels_args = {f"{name}_label": batch[f"{name}_label"]["label_ctc"] for name in  config["Global"]["handling_grapheme"]}
+                    post_result = post_process_class(preds_args, labels_args)
                     eval_class(post_result, batch_numpy)
             elif model_type in ['sr']:
                 eval_class(preds, batch_numpy)
             elif model_type in ['can']:
                 eval_class(preds[0], batch_numpy[2:], epoch_reset=(idx == 0))
             else:
-                post_result = post_process_class(preds, batch_numpy[1])
+                
+                # preds_args = {name: preds[name]["ctc"] for name in config["Global"]["handling_grapheme"]}
+                # labels_args = {f"{name}_label": batch[f"{name}_label"]["label_ctc"] for name in config["Global"]["handling_grapheme"]}
+                if "handling_grapheme" in config["Global"]:
+                    preds_args = {name: preds[name] for name in config["Global"]["handling_grapheme"]}
+                    labels_args = {f"{name}_label": batch[f"{name}_label"]["label_ctc"] for name in config["Global"]["handling_grapheme"]}
+                    post_result = post_process_class(preds_args, labels_args)
+                else:
+                    post_result = post_process_class(preds, batch["label"])
                 # print(f"post_result: {batch_numpy}")
                 eval_class(post_result, batch_numpy)
 
@@ -752,6 +800,7 @@ def preprocess(is_train=False):
     config = merge_config(config, profile_dic)
 
     if is_train:
+        
         # save_config
         save_model_dir = config['Global']['save_model_dir']
         os.makedirs(save_model_dir, exist_ok=True)
@@ -761,6 +810,7 @@ def preprocess(is_train=False):
         log_file = '{}/train.log'.format(save_model_dir)
     else:
         log_file = None
+
     logger = get_logger(log_file=log_file)
 
     # check if set use_gpu=True in paddlepaddle cpu version

@@ -117,6 +117,27 @@ class WorkDB(DB):
         report_path = self.save_relative_to(id, config["report_file"], "absolute", "local")
         df.to_csv(report_path)
     
+    def modify_train_config(self, id, key, value):
+        
+        config = self.get_config(id, relative_to="project")
+        train_config_name = Path(config["train_config"]).name
+        
+        train_config = super().get_config(id, config_name=train_config_name)
+        config = train_config
+        keys = key.split(".")
+        for k in keys[:-1]:
+            config = config[k]
+        config[keys[-1]] = value
+        super().update_config(id, train_config, config_name=train_config_name)
+        
+        # print(train_config_name)
+        
+        # config = self.get_config(id, relative_to="absolute", config_name=)
+        
+        
+        
+        
+    
     def report_eval(self, id, report):
         # 기존 데이터 로드
         df = self.get_report_df(id)
@@ -319,15 +340,15 @@ class WorkDB(DB):
             f.write(command+"\n")
 
 
-    def get_best_epoch(self, id, criteria = "test"):
+    def get_best_epoch(self, id, criteria = "test", metric="acc"):
         df = self.get_report_df(id)
         df.reset_index(inplace=True)
         df = df[df["task"] == criteria]
         df = df[df["version"] != "best"]
-        return df.loc[df["acc"].idxmax()].version
+        return df.loc[df[metric].idxmax()].version
     
-    def get_best_report(self, id, criteria = "test"):
-        epoch = self.get_best_epoch(id, criteria)
+    def get_best_report(self, id, criteria = "test", metric="acc"):
+        epoch = self.get_best_epoch(id, criteria, metric=metric)
         df = self.get_report_df(id)
         return df[df["version"] == epoch]
 
@@ -379,32 +400,33 @@ class WorkDB(DB):
     
     
     
-    def draw_rec_graph_v2(self, id, window=1, tasks = ["train", "eval", "test"], labels = ["train", "eval", "test"]):
+    def draw_rec_graph_v2(self, id, window=1, tasks = ["train", "eval", "test"], labels = ["train", "eval", "test"], metrics = ["acc", "norm_edit"]):
         plt.gcf().set_size_inches(8, 3)
         
         df = self.get_report_df(id).sort_values("version")
         
-        plt.subplot(1, 2, 1)
-        plt.title(f"Accuracy")
-        plt.xlabel("Epochs")
-        for task, label in zip(tasks, labels):
-            task_df = df[df["task"] == task]
-            data = smooth(task_df["acc"], window=window)
-            if task == "eval":
-                task = "test"
-            plt.plot(task_df["version"], data, label=label)
-        plt.legend()
+        for i, metric in enumerate(metrics):
+            plt.subplot(1, len(metrics), i+1)
+            plt.title(metric)
+            plt.xlabel("Epochs")
+            for task, label in zip(tasks, labels):
+                task_df = df[df["task"] == task]
+                data = smooth(task_df[metric], window=window)
+                if task == "eval":
+                    task = "test"
+                plt.plot(task_df["version"], data, label=label)
+            plt.legend(loc='upper center', bbox_to_anchor=(0.5, -0.2), ncol=2)
             
-        plt.subplot(1, 2, 2)
-        plt.title(f"Norm-Edit-Distance")
-        plt.xlabel("Epochs")
-        for task, label in zip(tasks, labels):
-            task_df = df[df["task"] == task]
-            data = smooth(task_df["norm_edit_dis"], window=window)
-            if task == "eval":
-                task = "test"
-            plt.plot(task_df["version"], data, label=label)    
-        plt.legend()
+        # plt.subplot(1, 2, 2)
+        # plt.title(f"Norm-Edit-Distance")
+        # plt.xlabel("Epochs")
+        # for task, label in zip(tasks, labels):
+        #     task_df = df[df["task"] == task]
+        #     data = smooth(task_df["norm_edit_dis"], window=window)
+        #     if task == "eval":
+        #         task = "test"
+        #     plt.plot(task_df["version"], data, label=label)    
+        # plt.legend()
         return plt    
 
 if __name__ == "__main__":

@@ -52,6 +52,7 @@ def load_model(config, model, optimizer=None, model_type='det'):
     logger = get_logger()
     global_config = config['Global']
     checkpoints = global_config.get('checkpoints')
+    
     pretrained_model = global_config.get('pretrained_model')
     best_model_dict = {}
     is_float16 = False
@@ -98,6 +99,7 @@ def load_model(config, model, optimizer=None, model_type='det'):
         params = paddle.load(checkpoints + '.pdparams')
         state_dict = model.state_dict()
         new_state_dict = {}
+
         for key, value in state_dict.items():
             if key not in params:
                 logger.warning("{} not in loaded params {} !".format(
@@ -114,7 +116,12 @@ def load_model(config, model, optimizer=None, model_type='det'):
                 logger.warning(
                     "The shape of model params {} {} not matched with loaded params shape {} !".
                     format(key, value.shape, pre_value.shape))
+        # print(2)
+        # print(params.keys())
+        # exit()
         model.set_state_dict(new_state_dict)
+        # print(model.head.head_dict)
+        # exit()
         if is_float16:
             logger.info(
                 "The parameter type is float16, which is converted to float32 when loading"

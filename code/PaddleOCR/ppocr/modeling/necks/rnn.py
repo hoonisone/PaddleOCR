@@ -240,6 +240,7 @@ class SequenceEncoder(nn.Layer):
             assert encoder_type in support_encoder_dict, '{} must in {}'.format(
                 encoder_type, support_encoder_dict.keys())
             if encoder_type == "svtr":
+                # kwargs["use_guide"] = False ######################################### 이거 내가 추가함
                 self.encoder = support_encoder_dict[encoder_type](
                     self.encoder_reshape.out_channels, **kwargs)
             elif encoder_type == 'cascadernn':

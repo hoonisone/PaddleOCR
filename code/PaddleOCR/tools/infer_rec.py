@@ -22,6 +22,9 @@ import os
 import sys
 import json
 from pathlib import Path
+import numpy as np
+
+
 __dir__ = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(__dir__)
 sys.path.insert(0, os.path.abspath(os.path.join(__dir__, '..')))
@@ -38,6 +41,7 @@ from ppocr.utils.utility import get_image_file_list
 import tools.program as program
 
 
+from ppocr.utils.korean_compose import compose_korean_char
 def main():
     global_config = config['Global']
 
@@ -47,7 +51,14 @@ def main():
 
     # build model
     if hasattr(post_process_class, 'character'):
-        char_num = len(getattr(post_process_class, 'character'))
+        # char_num = len(getattr(post_process_class, 'character'))
+        character = getattr(post_process_class, 'character')
+        if "use_grapheme" in global_config and global_config["use_grapheme"]:    
+            char_num= np.array([len(character[grapheme]) for grapheme in global_config["handling_grapheme"]])
+            # char_num = np.array([len(x) for x in character])
+
+        else:
+            char_num = len(character)
         if config["Architecture"]["algorithm"] in ["Distillation",
                                                    ]:  # distillation model
             for key in config["Architecture"]["Models"]:
@@ -68,10 +79,9 @@ def main():
                 else:
                     config["Architecture"]["Models"][key]["Head"][
                         "out_channels"] = char_num
-        elif config['Architecture']['Head'][
-                'name'] == 'MultiHead':  # multi head
+        elif config['Architecture']['Head']['name'] in ['MultiHead', 'MultiHead_Grapheme']:
             out_channels_list = {}
-            char_num = len(getattr(post_process_class, 'character'))
+            # char_num = len(getattr(post_process_class, 'character'))
             if config['PostProcess']['name'] == 'SARLabelDecode':
                 char_num = char_num - 2
             if config['PostProcess']['name'] == 'NRTRLabelDecode':
@@ -81,9 +91,11 @@ def main():
             out_channels_list['NRTRLabelDecode'] = char_num + 3
             config['Architecture']['Head'][
                 'out_channels_list'] = out_channels_list
+            # print(out_channels_list)
+            # exit()
         else:  # base rec model
             config["Architecture"]["Head"]["out_channels"] = char_num
-    model = build_model(config['Architecture'])
+    model = build_model(config['Architecture'], **global_config)
 
     load_model(config, model)
 
@@ -165,7 +177,7 @@ def main():
                     (np.expand_dims(
                         batch[0], axis=0).shape), dtype='float32')
                 label = paddle.ones((1, 36), dtype='int64')
-            images = np.expand_dims(batch[0], axis=0)
+            images = np.expand_dims(batch["image"], axis=0)
             images = paddle.to_tensor(images)
             if config['Architecture']['algorithm'] == "SRN":
                 preds = model(images, others)
@@ -178,6 +190,7 @@ def main():
             else:
                 preds = model(images)
             post_result = post_process_class(preds)
+
             info = None
             if isinstance(post_result, dict):
                 rec_info = dict()
@@ -188,17 +201,37 @@ def main():
                             "score": float(post_result[key][0][1]),
                         }
                 info = json.dumps(rec_info, ensure_ascii=False)
+                
             elif isinstance(post_result, list) and isinstance(post_result[0],
                                                               int):
                 # for RFLearning CNT branch 
                 info = str(post_result[0])
             else:
-                if len(post_result[0]) >= 2:
-                    info = post_result[0][0] + "\t" + str(post_result[0][1])
+                # if len(post_result[0]) >= 2:
+                info={k:v for k, v in post_result[0].items()}
+                if all([x in post_result[0].keys() for x in ["first", "second", "third"]]):
+                    result = list(zip(post_result[0]["first"][0], post_result[0]["second"][0], post_result[0]["third"][0], post_result[0]["first"][1], post_result[0]["second"][1], post_result[0]["third"][1]))
+                    # p = sum([post_result[0]["first"][1], post_result[0]["second"][1], post_result[0]["third"][1]])/3
+                    pred = compose_korean_char(result)
+                    info["composed"] = pred
 
+                # if len(post_result[0]) >= 1:
+  
+                #     if global_config["infer_type"] == "grapheme":
+                #         result = list(zip(post_result[0]["first"][0], post_result[0]["second"][0], post_result[0]["third"][0]))
+                #         p = sum([post_result[0]["first"][1], post_result[0]["second"][1], post_result[0]["third"][1]])/3
+                #         pred = compose_korean_char(result)
+                #         info = pred + "\t" + str(p)
+                #     elif global_config["infer_type"] == "character":
+                #         info = post_result[0]["character"][0] + "\t" + str(post_result[0]["character"][1])
+                #     else:
+                #         any_grapheme = global_config["handling_grapheme"][0]
+                #         info = post_result[0][any_grapheme][0] + "\t" + str(post_result[0][any_grapheme][1])
+                    # info = post_result[0][0] + "\t" + str(post_result[0][1])
             if info is not None:
-                logger.info("\t result: {}".format(info))
-                fout.write(file + "\t" + info + "\n")
+                
+                logger.info("\t result: {}".format(str(info)))
+                fout.write(file + "\t" + str(info) + "\n")
     logger.info("success!")
 
 

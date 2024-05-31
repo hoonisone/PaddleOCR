@@ -204,7 +204,7 @@ def main(config, device, logger, vdl_writer):
         scaler = None
 
     # load pretrain model
-    
+
     pre_best_model_dict = load_model(config, model, optimizer,
                                      config['Architecture']["model_type"])
     
@@ -241,6 +241,7 @@ def test_reader(config, device, logger):
 
 
 if __name__ == '__main__':
+    print("시작")
     config, device, logger, vdl_writer = program.preprocess(is_train=True)
     # print(config)
     # print(device)

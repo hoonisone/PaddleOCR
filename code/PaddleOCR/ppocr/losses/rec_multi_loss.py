@@ -31,6 +31,7 @@ class MultiLoss(nn.Layer):
         self.loss_funcs = {} # combined loss 처럼 여러 loss function을 묶는 것 같은데..
         self.loss_list = kwargs.pop('loss_config_list')
         
+        
         # 내가 보는 config의 경우
         """ 
             loss_config_list:
@@ -63,6 +64,8 @@ class MultiLoss(nn.Layer):
 
 
     def forward(self, predicts, batch):
+        # print(batch.keys())
+        batch = [batch[name] for name in ["image", "label_ctc", "label_sar", "length", "valid_ratio"]]
         self.total_loss = {}
         total_loss = 0.0
         # batch [image, label_ctc, label_sar, length, valid_ratio]
@@ -91,7 +94,8 @@ class MultiLoss_Grapheme(nn.Layer):
     def __init__(self, handling_grapheme, **kwargs):
         super().__init__()
         self.handling_grapheme = handling_grapheme
-        
+        self.weight = kwargs.get("weight", {"character":1, "first":1, "second":1, "third":1})
+                    
         def extract_kwargs(kwargs, idx):
             import copy
             kwargs = copy.deepcopy(kwargs)
@@ -104,17 +108,16 @@ class MultiLoss_Grapheme(nn.Layer):
         }
         
     def forward(self, predicts, batch):
-        def get_batch(batch, idx):
-            return [
-                batch[0],
-                batch[idx+1]["label_ctc"],
-                batch[idx+1]["label_sar"],
-                batch[idx+1]["length"],
-                batch[5]
-            ]
+        def get_batch(batch, grapheme):
+            return {
+                "image":batch["image"],
+                "label_ctc":batch[f"{grapheme}_label"]["label_ctc"],
+                "label_sar":batch[f"{grapheme}_label"]["label_sar"],
+                "length":batch[f"{grapheme}_label"]["length"],
+                "valid_ratio":batch["valid_ratio"]
+            }
             
-        
-        total_loss = {grapheme: self.multiloss_dict[grapheme](predicts[grapheme], get_batch(batch, i)) for i, grapheme in enumerate(self.handling_grapheme)}
-        total_loss["loss"] = sum([total_loss[grapheme]["loss"] for grapheme in self.handling_grapheme])/len(self.handling_grapheme)
+        total_loss = {grapheme: self.multiloss_dict[grapheme](predicts[grapheme], get_batch(batch, grapheme)) for grapheme in self.handling_grapheme}
+        total_loss["loss"] = sum([total_loss[grapheme]["loss"]*self.weight[grapheme] for grapheme in self.handling_grapheme])/len(self.handling_grapheme)
         
         return total_loss

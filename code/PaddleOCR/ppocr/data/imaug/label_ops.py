@@ -1234,9 +1234,11 @@ class VQATokenLabelEncode(object):
             gt_label.extend([self.label2id_map[("i-" + label).upper()]] *
                             (len(encode_res["input_ids"]) - 1))
         return gt_label
+    
 
 
-class MultiLabelEncode(BaseRecLabelEncode):
+
+class MultiLabelEncode(BaseRecLabelEncode): # 원래 버전
     def __init__(self,
                  max_text_length,
                  character_dict_path=None,
@@ -1258,7 +1260,7 @@ class MultiLabelEncode(BaseRecLabelEncode):
             self.gtc_encode = eval(gtc_encode)(
                 max_text_length, character_dict_path, use_space_char, **kwargs)
 
-    def __call__(self, data):
+    def __call__(self, data):    
         data_ctc = copy.deepcopy(data)
         data_gtc = copy.deepcopy(data)
         data_out = dict()
@@ -1269,15 +1271,18 @@ class MultiLabelEncode(BaseRecLabelEncode):
         if ctc is None or gtc is None:
             return None
 
+        
         data_out['label_ctc'] = ctc['label']
         if self.gtc_encode_type is not None:
             data_out['label_gtc'] = gtc['label']
         else:
             data_out['label_sar'] = gtc['label']
         data_out['length'] = ctc['length']
+        
+        
         return data_out
 
-class MultiLabelEncode_Grapheme(object):
+class MultiLabelEncode11(object): # 수정 버전
     def __init__(self,
                  max_text_length,
                  character_dict_path=None,
@@ -1285,54 +1290,134 @@ class MultiLabelEncode_Grapheme(object):
                  gtc_encode=None,
                  **kwargs):
         
-        self.first_grapheme_encoder = MultiLabelEncode(max_text_length, 
-                                                       character_dict_path = character_dict_path[0], 
-                                                       use_space_char = use_space_char, 
-                                                       gtc_encode = gtc_encode,
-                                                **kwargs)
-        self.second_grapheme_encoder = MultiLabelEncode(max_text_length, 
-                                                character_dict_path = character_dict_path[1], 
-                                                use_space_char = use_space_char, 
-                                                gtc_encode = gtc_encode,
-                                                **kwargs)
-        self.third_grapheme_encoder = MultiLabelEncode(max_text_length, 
-                                        character_dict_path = character_dict_path[2], 
-                                        use_space_char = use_space_char, 
-                                        gtc_encode = gtc_encode,
-                                        **kwargs)
-        self.origin_grapheme_encoder = MultiLabelEncode(max_text_length, 
-                                character_dict_path = character_dict_path[3], 
-                                use_space_char = use_space_char, 
-                                gtc_encode = gtc_encode,
-                                **kwargs)
+        # super(MultiLabelEncode, self).__init__(
+        #     max_text_length, character_dict_path, use_space_char)
+        
+        self.handling_grapheme = ["first", "second", "third", "origin"]
+        self.handling_grapheme = ["first"]
+        
+        self.character_dict_path = {
+            "first": "./code/PaddleOCR/ppocr/utils/dict/korean_dict_grapheme_first.txt",
+            "second": "./code/PaddleOCR/ppocr/utils/dict/korean_dict_grapheme_second.txt",
+            "third": "./code/PaddleOCR/ppocr/utils/dict/korean_dict_grapheme_third.txt",
+            "origin": "./code/PaddleOCR/ppocr/utils/dict/korean_dict_grapheme_origin.txt"
+        }
+        
+        self.encoder_dict = {
+            g: MultiLabelEncode(max_text_length, 
+                            character_dict_path = self.character_dict_path[g], 
+                            use_space_char = use_space_char, 
+                            gtc_encode = gtc_encode,
+                    **kwargs) for g in self.handling_grapheme}
+
+    def __call__(self, data):    
+        
+        data_out = dict()
+        for g in self.handling_grapheme:
+            data_copy = copy.deepcopy(data) 
+            data_copy["label"] = data["label"][g]
+            encoded_data = self.encoder_dict[g](data_copy)    
+            data_out[f'{g}_label'] = {name:encoded_data[name] for name in ['label_ctc', 'label_gtc', 'label_sar', 'length'] if name in encoded_data.keys()}
+            # 아래 둘 은 뭘 쓰든 다 똑같음
+            data_out['img_path'] = encoded_data["img_path"]
+            data_out['image'] = encoded_data['image']
+        
+        a = data_out["first_label"]
+        del data_out["first_label"]
+        
+        data_out.update(a)
+        # return data_out
+        return data_out
+
+class MultiLabelEncode_Grapheme(object):
+    def __init__(self,
+                 max_text_length,
+                 handling_grapheme,
+                 character_dict_path=None,
+                 use_space_char=False,
+                 gtc_encode=None,
+                 **kwargs):
+        self.handling_grapheme = handling_grapheme
+        # character_dict_path = kwargs["character_dict_path_test"]
+        
+    # first: ./code/PaddleOCR/ppocr/utils/dict/korean_dict_grapheme_first.txt
+    # second: ./code/PaddleOCR/ppocr/utils/dict/korean_dict_grapheme_second.txt
+    # third: ./code/PaddleOCR/ppocr/utils/dict/korean_dict_grapheme_third.txt
+    # origin: ./code/PaddleOCR/ppocr/utils/dict/korean_dict_grapheme_origin.txt
+    
+        self.encoder_dict = {
+            g: MultiLabelEncode(max_text_length, 
+                            character_dict_path = character_dict_path[g], 
+                            use_space_char = use_space_char, 
+                            gtc_encode = gtc_encode,
+                    **kwargs)
+            for g in self.handling_grapheme
+        }
+        # self.first_grapheme_encoder = MultiLabelEncode(max_text_length, 
+        #                                                character_dict_path = character_dict_path[0], 
+        #                                                use_space_char = use_space_char, 
+        #                                                gtc_encode = gtc_encode,
+        #                                         **kwargs)
+        # self.second_grapheme_encoder = MultiLabelEncode(max_text_length, 
+        #                                         character_dict_path = character_dict_path[1], 
+        #                                         use_space_char = use_space_char, 
+        #                                         gtc_encode = gtc_encode,
+        #                                         **kwargs)
+        # self.third_grapheme_encoder = MultiLabelEncode(max_text_length, 
+        #                                 character_dict_path = character_dict_path[2], 
+        #                                 use_space_char = use_space_char, 
+        #                                 gtc_encode = gtc_encode,
+        #                                 **kwargs)
+        # self.origin_grapheme_encoder = MultiLabelEncode(max_text_length, 
+        #                         character_dict_path = character_dict_path[3], 
+        #                         use_space_char = use_space_char, 
+        #                         gtc_encode = gtc_encode,
+        #                         **kwargs)
 
     def __call__(self, data):
         
-        data_copy = copy.deepcopy(data)
-        data_copy["label"] = data["label"]["first"]
-        first_data = self.first_grapheme_encoder(data_copy)
-        
-        data_copy = copy.deepcopy(data)
-        data_copy["label"] = data["label"]["second"]
-        second_data = self.second_grapheme_encoder(data_copy)
-        
-        data_copy = copy.deepcopy(data)
-        data_copy["label"] = data["label"]["third"]
-        third_data = self.third_grapheme_encoder(data_copy)
-        
-        data_copy = copy.deepcopy(data)
-        data_copy["label"] = data["label"]["origin"]
-        origin_data = self.origin_grapheme_encoder(data_copy)
-        
         data_out = dict()
-        data_out['img_path'] = first_data["img_path"]
-        data_out['image'] = first_data['image']
-        data_out['first_label'] = {name:first_data[name] for name in ['label_ctc', 'label_gtc', 'label_sar', 'length'] if name in first_data.keys()}
-        data_out['second_label'] = {name:second_data[name] for name in ['label_ctc', 'label_gtc', 'label_sar', 'length'] if name in second_data.keys()}
-        data_out['third_label'] = {name:third_data[name] for name in ['label_ctc', 'label_gtc', 'label_sar', 'length'] if name in third_data.keys()}
-        data_out['origin_label'] = {name:origin_data[name] for name in ['label_ctc', 'label_gtc', 'label_sar', 'length'] if name in origin_data.keys()}
+        data_out["origin_label"] = data["origin_label"]
+        for g in self.handling_grapheme:
+            data_copy = copy.deepcopy(data) 
+            data_copy["label"] = data["label"][g]
+            encoded_data = self.encoder_dict[g](data_copy)    
+            data_out[f'{g}_label'] = {name:encoded_data[name] for name in ['label_ctc', 'label_gtc', 'label_sar', 'length'] if name in encoded_data.keys()}
+            # 아래 둘 은 뭘 쓰든 다 똑같음
+            data_out['img_path'] = encoded_data["img_path"]
+            data_out['image'] = encoded_data['image']
+            
+        # a = data_out["first_label"]
+        # del data_out["first_label"]
+        # data_out.update(a)
         
         return data_out
+        
+        # data_copy = copy.deepcopy(data)
+        # data_copy["label"] = data["label"]["first"]
+        # first_data = self.first_grapheme_encoder(data_copy)
+        
+        # data_copy = copy.deepcopy(data)
+        # data_copy["label"] = data["label"]["second"]
+        # second_data = self.second_grapheme_encoder(data_copy)
+        
+        # data_copy = copy.deepcopy(data)
+        # data_copy["label"] = data["label"]["third"]
+        # third_data = self.third_grapheme_encoder(data_copy)
+        
+        # data_copy = copy.deepcopy(data)
+        # data_copy["label"] = data["label"]["origin"]
+        # origin_data = self.origin_grapheme_encoder(data_copy)
+        
+        # data_out = dict()
+        # data_out['img_path'] = first_data["img_path"]
+        # data_out['image'] = first_data['image']
+        # data_out['first_label'] = {name:first_data[name] for name in ['label_ctc', 'label_gtc', 'label_sar', 'length'] if name in first_data.keys()}
+        # data_out['second_label'] = {name:second_data[name] for name in ['label_ctc', 'label_gtc', 'label_sar', 'length'] if name in second_data.keys()}
+        # data_out['third_label'] = {name:third_data[name] for name in ['label_ctc', 'label_gtc', 'label_sar', 'length'] if name in third_data.keys()}
+        # data_out['origin_label'] = {name:origin_data[name] for name in ['label_ctc', 'label_gtc', 'label_sar', 'length'] if name in origin_data.keys()}
+        
+        # return data_out
 
 
 class NRTRLabelEncode(BaseRecLabelEncode):

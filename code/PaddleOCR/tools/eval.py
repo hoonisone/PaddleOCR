@@ -33,7 +33,7 @@ from ppocr.postprocess import build_post_process
 from ppocr.metrics import build_metric
 from ppocr.utils.save_load import load_model
 import tools.program as program
-
+import numpy as np
 
 def main():
     ###################################################### MH Modification Start
@@ -64,8 +64,13 @@ def main():
     # build model
     # for rec algorithm
     if hasattr(post_process_class, 'character'):
-        
-        char_num = len(getattr(post_process_class, 'character'))
+        character = getattr(post_process_class, 'character')
+        if "use_grapheme" in global_config and global_config["use_grapheme"]:    
+            char_num= np.array([len(character[grapheme]) for grapheme in global_config["handling_grapheme"]])
+            # char_num = np.array([len(x) for x in character])
+
+        else:
+            char_num = len(character)
         if config['Architecture']["algorithm"] in ["Distillation",
                                                    ]:  # distillation model
             for key in config['Architecture']["Models"]:
@@ -87,7 +92,7 @@ def main():
                     config['Architecture']["Models"][key]["Head"][
                         'out_channels'] = char_num
         elif config['Architecture']['Head'][
-                'name'] == 'MultiHead':  # for multi head
+                'name']  in  ['MultiHead', 'MultiHead_Grapheme']:  # for multi head
             out_channels_list = {}
             if config['PostProcess']['name'] == 'SARLabelDecode':
                 char_num = char_num - 2
@@ -101,7 +106,7 @@ def main():
         else:  # base rec model
             config['Architecture']["Head"]['out_channels'] = char_num
 
-    model = build_model(config['Architecture'])
+    model = build_model(config['Architecture'], **global_config)
     extra_input_models = [
         "SRN", "NRTR", "SAR", "SEED", "SVTR", "SVTR_LCNet", "VisionLAN",
         "RobustScanner", "SVTR_HGNet"
@@ -122,7 +127,7 @@ def main():
         model_type = None
 
     # build metric
-    eval_class = build_metric(config['Metric'])
+    eval_class = build_metric(config['Metric'], **global_config)
     # amp
     use_amp = config["Global"].get("use_amp", False)
     amp_level = config["Global"].get("amp_level", 'O2')
@@ -152,10 +157,14 @@ def main():
         for k, v in best_model_dict.items():
             logger.info('{}:{}'.format(k, v))
 
+
+
     # start eval
     metric = program.eval(model, valid_dataloader, post_process_class,
-                          eval_class, model_type, extra_input, scaler,
+                          eval_class, model_type, config, extra_input, scaler,
                           amp_level, amp_custom_black_list)
+    
+
     
     logger.info('metric eval ***************')
     for k, v in metric.items():

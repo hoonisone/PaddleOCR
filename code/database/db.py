@@ -24,12 +24,15 @@ class DB:
     def is_target(self, path):
         return len(list(path.glob(self.config_name))) == 1
         
-    def get_path(self, id):
-        return str(Path(self.PROJECT_ROOT)/self.dir/id/self.config_name).replace("\\", "/")
-    
-    def get_config(self, id):
+    def get_path(self, id, config_name=None):
         
-        path = self.get_path(id)
+        config_name = self.config_name if config_name == None else config_name
+        
+        return str(Path(self.PROJECT_ROOT)/self.dir/id/config_name).replace("\\", "/")
+    
+    def get_config(self, id, config_name=None):
+        
+        path = self.get_path(id, config_name=config_name)
         with open(path) as f:
             config = yaml.load(f, Loader=yaml.FullLoader)
         if config == None:
@@ -40,8 +43,8 @@ class DB:
         #     config = self.replace(config, "{ID}", id)
         return config
     
-    def update_config(self, id, config):
-        path = self.get_path(id)
+    def update_config(self, id, config, config_name=None):
+        path = self.get_path(id, config_name=config_name)
         with open(path, "w") as f:
             yaml.dump(config, f)
 

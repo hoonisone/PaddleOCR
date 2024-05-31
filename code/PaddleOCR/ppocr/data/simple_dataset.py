@@ -156,7 +156,6 @@ class SimpleDataSet(Dataset):
             label = substr[1]
             img_path = os.path.join(self.data_dir, file_name)
             data = {'img_path': img_path, 'label': label}
-            
             if not os.path.exists(img_path):
                 raise Exception("{} does not exist!".format(img_path))
             with open(data['img_path'], 'rb') as f:
@@ -165,9 +164,9 @@ class SimpleDataSet(Dataset):
             data['ext_data'] = self.get_ext_data()
             outs = transform(data, self.ops)
         except:
-            self.logger.error(
-                "When parsing line {}, error happened with msg: {}".format(
-                    data_line, traceback.format_exc()))
+            # self.logger.error(
+            #     "When parsing line {}, error happened with msg: {}".format(
+            #         data_line, traceback.format_exc()))
             outs = None
     
         if outs is None:

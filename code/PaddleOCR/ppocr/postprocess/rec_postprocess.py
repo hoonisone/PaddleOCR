@@ -91,12 +91,15 @@ class BaseRecLabelDecode(object):
             if len(conf_list) == 0:
                 conf_list = [0]
 
+            if not isinstance(conf_list, list):
+                conf_list = conf_list.tolist()
+                
             text = ''.join(char_list)
 
             if self.reverse:  # for arabic rec
                 text = self.pred_reverse(text)
 
-            result_list.append((text, np.mean(conf_list).tolist()))
+            result_list.append([text, conf_list])
         return result_list
 
     def get_ignored_tokens(self):
@@ -122,6 +125,7 @@ class CTCLabelDecode(BaseRecLabelDecode):
         if label is None:
             return text
         label = self.decode(label)
+    
         return text, label
 
     def add_special_char(self, dict_character):
@@ -134,11 +138,8 @@ class CTCLabelDecode_Grapheme(object):
     def __init__(self, handling_grapheme, character_dict_path=None, use_space_char=False,
                  **kwargs):
         self.handling_grapheme = handling_grapheme
-        
-        self.grapheme_to_idx = {grapheme:i for i, grapheme in enumerate(["first", "second", "third", "origin"])}
-        
         self.decode_dict = {
-            grphame:CTCLabelDecode(character_dict_path = character_dict_path[self.grapheme_to_idx[grphame]],
+            grphame:CTCLabelDecode(character_dict_path = character_dict_path[grphame],
                                            use_space_char = use_space_char,
                                            **kwargs)
             for grphame in self.handling_grapheme
@@ -160,8 +161,11 @@ class CTCLabelDecode_Grapheme(object):
     def __call__(self, preds, label=None, *args, **kwargs):
         result = dict()
         for grapheme in self.handling_grapheme:
-            idx = self.grapheme_to_idx[grapheme]
-            result[grapheme] = self.decode_dict[grapheme](preds[idx], label=label[idx], *args, **kwargs)
+            if label != None:
+                arg_label=label[f"{grapheme}_label"]
+            else:
+                arg_label = None
+            result[grapheme] = self.decode_dict[grapheme](preds[grapheme], label=arg_label, *args, **kwargs)
         
         # first = self.first_decode(preds[0], label=label[0], *args, **kwargs)
         # second = self.second_decode(preds[1], label=label[1], *args, **kwargs)
@@ -172,8 +176,12 @@ class CTCLabelDecode_Grapheme(object):
         # labels = {"first":first[1], "second":second[1], "third":third[1]}
         
         texts = {grapheme: result[grapheme][0] for grapheme in self.handling_grapheme}
-        labels = {grapheme: result[grapheme][1] for grapheme in self.handling_grapheme}
         
+        try: 
+            labels = {grapheme: result[grapheme][1] for grapheme in self.handling_grapheme}
+        except: # 추론형인 레이블 없음
+            labels = None
+
         return texts, labels
 
     def add_special_char(self, dict_character):
