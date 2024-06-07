@@ -1,7 +1,8 @@
 from pathlib import Path
 import yaml
+
+
 from .labelset_db import LabelsetDB
-from .dataset_db import DatasetDB
 from .model_db import ModelDB
 from .db import DB
 import copy
@@ -12,10 +13,12 @@ import matplotlib.pyplot as plt
 
 def smooth(x, window):
     new = []
+    x = list(x)
     for i in range(len(x)):
         r = max(i-window+1, 0)
         q = i
         new.append(sum(x[r:q+1])/(q-r+1))
+        # print(new)
     return new
     
     
@@ -42,6 +45,7 @@ class WorkDB(DB):
             config = self.get_config(id)
             new_df = pd.DataFrame([{"id": id, "labelsets": config["labelsets"], "model": config["model"], "trained_epoch": self.get_trained_epoch(id)}])
             df = pd.concat([df, new_df])
+            
         return df
     def make(self, name, labelsets, model):
         assert name not in self.get_all_id(), f"the work '{name}' already exist!"
@@ -135,7 +139,7 @@ class WorkDB(DB):
         # config = self.get_config(id, relative_to="absolute", config_name=)
         
         
-        
+
         
     
     def report_eval(self, id, report):
@@ -158,8 +162,20 @@ class WorkDB(DB):
             return df.iloc[0]
     
     def get_trained_epoch(self, id):
-        return len(list(Path(self.get_config(id, relative_to="absolute")["trained_model_dir"]).glob("iter_epoch_*.pdparams")))
+        files = list(Path(self.get_config(id, relative_to="absolute")["trained_model_dir"]).glob("iter_epoch_*.pdparams"))
+        if len(files) == 0:
+            return 0
+        return max([int(path.stem[11:]) for path in files])
     
+    def get_all_epoch(self, id):
+        files = list(Path(self.get_config(id, relative_to="absolute")["trained_model_dir"]).glob("iter_epoch_*.pdparams"))
+        return [int(path.stem[11:]) for path in files]
+        
+    
+    def check_weight_exist(self, id, version):
+        epoch_list = self.get_all_epoch(id)
+        return version in epoch_list
+                
     def make_inferenece_model_name(self, version):
         return f"inference_{version}"
     
@@ -200,6 +216,12 @@ class WorkDB(DB):
             if not(isinstance(item, type(None)) or item.empty):
                 print(f"(id:{id}, version:{version}, task:{task}) already evaluated")
                 return 
+            
+            # weight이 없으면 취소
+            elif not self.check_weight_exist(id, version):
+                print(f"(id:{id}, version:{version}, task:{task}) has no weight")
+                return
+                
             
         code = self.get_command_code(id, "eval", relative_to=relative_to)
         
@@ -258,10 +280,25 @@ class WorkDB(DB):
         elif relative_to == "project":
             pass
         return task
-        
-    def train(self, id, version, epoch, relative_to="project", command_to="global"):
+    
+    
+    
+
+    # 학습 코드 생성 (성공 실패 여부 반환) 
+    def train(self, id, version, epoch, relative_to="project", command_to="global", epoch_check=True):
         assert relative_to in ["absolute", "project"], f"relative_to should be 'absolute' or 'project' but {relative_to} is given"
         
+        
+        pass_flag = False
+        if epoch_check:
+            trained_epoch = self.get_trained_epoch(id)
+            if epoch <= trained_epoch:
+                pass_flag = True
+
+        print(f"""Trained ({trained_epoch:3d}/{epoch:3d}) | {id} \t{"(Passed)"if pass_flag else ""}""")
+        if pass_flag:
+            return False
+            
         code = self.get_command_code(id, "train", relative_to=relative_to)
         config = self.get_config(id, relative_to="project")
         labelset_configs = [LabelsetDB().get_config(id, relative_to="project") for id in config["labelsets"]]
@@ -285,11 +322,12 @@ class WorkDB(DB):
                    }
         
         command = f"python {code} -c {train_config} -o {' '.join([f'{k}={v}' for k, v in options.items()])}"
-        print(command)
+        # print(command)
         
         save_path = self.save_relative_to(id, "train.sh", relative_to=relative_to, save_to=command_to)
         with open(save_path, "a") as f:
             f.write(command+"\n")
+        return True
 
     def save_relative_to(self, id, path, relative_to="project", save_to="global"):
         assert save_to in ["global", "local"], f"save_to should be 'global' or 'local' but {save_to} is given"
@@ -340,7 +378,11 @@ class WorkDB(DB):
             f.write(command+"\n")
 
 
-    def get_best_epoch(self, id, criteria = "test", metric="acc"):
+    def get_best_epoch(self, id, criteria = "test", metric=None):
+        if metric is None:
+            config = self.get_config(id)
+            metric = config["metric"]
+        
         df = self.get_report_df(id)
         df.reset_index(inplace=True)
         df = df[df["task"] == criteria]
@@ -401,7 +443,7 @@ class WorkDB(DB):
     
     
     def draw_rec_graph_v2(self, id, window=1, tasks = ["train", "eval", "test"], labels = ["train", "eval", "test"], metrics = ["acc", "norm_edit"]):
-        plt.gcf().set_size_inches(8, 3)
+        plt.gcf().set_size_inches(4*len(metrics), 3)
         
         df = self.get_report_df(id).sort_values("version")
         
