@@ -169,7 +169,8 @@ class WorkDB(DB):
     
     def get_all_epoch(self, id):
         files = list(Path(self.get_config(id, relative_to="absolute")["trained_model_dir"]).glob("iter_epoch_*.pdparams"))
-        return [int(path.stem[11:]) for path in files]
+        epoch_list = [int(path.stem[11:]) for path in files]
+        return sorted(epoch_list)
         
     
     def check_weight_exist(self, id, version):

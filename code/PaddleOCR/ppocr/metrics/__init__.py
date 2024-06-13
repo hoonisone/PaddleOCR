@@ -22,7 +22,7 @@ import copy
 __all__ = ["build_metric"]
 
 from .det_metric import DetMetric, DetFCEMetric
-from .rec_metric import RecMetric, CNTMetric, CANMetric, RecMetric_Grapheme
+from .rec_metric import RecMetric, CNTMetric, CANMetric, RecMetric_Grapheme, RecMetric_Grapheme_v2
 from .cls_metric import ClsMetric
 from .e2e_metric import E2EMetric
 from .distillation_metric import DistillationMetric
@@ -38,7 +38,7 @@ def build_metric(config, **kwargs):
     support_dict = [
         "DetMetric", "DetFCEMetric", "RecMetric", "ClsMetric", "E2EMetric",
         "DistillationMetric", "TableMetric", 'KIEMetric', 'VQASerTokenMetric',
-        'VQAReTokenMetric', 'SRMetric', 'CTMetric', 'CNTMetric', 'CANMetric', "RecMetric_Grapheme"
+        'VQAReTokenMetric', 'SRMetric', 'CTMetric', 'CNTMetric', 'CANMetric', "RecMetric_Grapheme", "RecMetric_Grapheme_v2"
     ]
 
     config = copy.deepcopy(config)

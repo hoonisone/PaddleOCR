@@ -22,8 +22,15 @@ def crop_by_polygon(image, polygon):
     mask_np = np.array(mask)
 
     # Apply the mask to the image
+    # print("#1", image.size)
+    # print("#2", polygon)
+    # print(image.mode)
+    # image.show()
     image_np = np.array(image)
+    # print("#3", image_np.shape)
+    
     result = np.zeros_like(image_np)
+    
     result[mask_np == 1] = image_np[mask_np == 1]
 
     # Create a new image from the result array

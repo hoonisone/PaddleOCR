@@ -75,6 +75,7 @@ class RecMetric(object):
             if self.ignore_space:
                 pred = pred.replace(" ", "")
                 target = target.replace(" ", "")
+
             if self.is_filter:
                 pred = self._normalize_text(pred)
                 target = self._normalize_text(target)
@@ -213,7 +214,157 @@ class RecMetric_Grapheme(object):
     def reset(self):
         self.metric = None
         
+class RecMetric_Grapheme_v2(object):
+    def __init__(self,
+                 handling_grapheme,
+                 main_indicator='acc',
+                 is_filter=False,
+                 ignore_space=True,
+                 first_main = False,
+                 **kwargs):
+        self.first_main = first_main
+        self.handling_grapheme = handling_grapheme 
+        self.inner_recmetric = RecMetric(main_indicator=main_indicator, is_filter=is_filter, ignore_space=ignore_space, **kwargs)
+    
+    @property
+    def main_indicator(self):
+        return self.inner_recmetric.main_indicator
 
+    def __call__(self, pred_label, batch=None, *args, **kwargs):
+        preds, labels = pred_label
+
+        total_metric = dict()
+        
+    
+        if "character" in self.handling_grapheme:
+            character_grapheme = {x:[] for x in ["first", "second", "third"]}
+            for text, probability in preds["character"]:
+                decomposed = decompose_korean_char(text)
+                first = "".join([x[0] for x in  decomposed])
+                second = "".join([x[1] for x in  decomposed])
+                third = "".join([x[2] for x in  decomposed])
+                character_grapheme["first"].append([first, probability])
+                character_grapheme["second"].append([second, probability])
+                character_grapheme["third"].append([third, probability])
+
+            for g in ["first", "second", "third"]:  # 문자 방식 그래핌 추론
+                if g in self.handling_grapheme: 
+                    self.inner_recmetric.ignore_space = True
+                    metric = self.inner_recmetric([character_grapheme[g], labels[g]])    
+                    total_metric[f"C|{g}|Acc|X"] = metric["acc"]
+                    # total_metric[f"C|{g}|C_NED|X"] = metric["C_NED"]
+                    # total_metric[f"C|{g}|G_NED|X"] = metric["G_NED"]
+                
+                    self.inner_recmetric.ignore_space = False
+                    metric = self.inner_recmetric([character_grapheme[g], labels[g]])    
+                    total_metric[f"C|{g}|Acc|O"] = metric["acc"]
+                    # total_metric[f"C|{g}|C_NED|O"] = metric["C_NED"]
+                    # total_metric[f"C|{g}|G_NED|O"] = metric["G_NED"]                    
+
+
+
+                g = "character"
+                self.inner_recmetric.ignore_space = True
+                metric = self.inner_recmetric([preds[g], labels[g]])    
+                total_metric[f"C|{g}|Acc|X"] = metric["acc"]
+                # total_metric[f"C|{g}|C_NED|X"] = metric["C_NED"]
+                # total_metric[f"C|{g}|G_NED|X"] = metric["G_NED"]
+            
+                self.inner_recmetric.ignore_space = False
+                metric = self.inner_recmetric([preds[g], labels[g]])    
+                total_metric[f"C|{g}|Acc|O"] = metric["acc"]
+                # total_metric[f"C|{g}|C_NED|O"] = metric["C_NED"]
+                # total_metric[f"C|{g}|G_NED|O"] = metric["G_NED"]
+            
+            
+        for g in ["first", "second", "third"]:  # 그래핌 방식 그래핌 추론
+            if g in self.handling_grapheme:
+                self.inner_recmetric.ignore_space = True
+                metric = self.inner_recmetric([preds[g], labels[g]])    
+                total_metric[f"G|{g}|Acc|X"] = metric["acc"]
+                # total_metric[f"G|{g}|C_NED|X"] = metric["C_NED"]
+                # total_metric[f"G|{g}|G_NED|X"] = metric["G_NED"]
+            
+                self.inner_recmetric.ignore_space = False
+                metric = self.inner_recmetric([preds[g], labels[g]])    
+                total_metric[f"G|{g}|Acc|O"] = metric["acc"]
+                # total_metric[f"G|{g}|C_NED|O"] = metric["C_NED"]
+                # total_metric[f"G|{g}|G_NED|O"] = metric["G_NED"]
+                
+
+        
+        pure_grapheme = list(set(["first", "second", "third"]) & set(self.handling_grapheme))
+        if len(pure_grapheme) == 3: # 그래핌 방식 문자 추론
+            composed_preds = []
+            
+            for (f, fp), (s, sp), (th, thp) in zip(preds["first"], preds["second"], preds["third"]):
+                composed_pred, composed_conf = compose_korean_char(f, s, th, fp, sp, thp, self.first_main)
+                # p = (fp+sp+thp)/3
+                composed_preds.append((composed_pred, composed_conf))
+            origin_label = [(x, 1.0) for x in batch["origin_label"]]
+            
+            self.inner_recmetric.ignore_space = True
+            metric = self.inner_recmetric([composed_preds, origin_label])
+            total_metric["G|Character|Acc|X"] = metric["acc"]
+            total_metric["G|Character|C_NED|X"] = metric["C_NED"]
+            total_metric["G|Character|G_NED|X"] = metric["G_NED"]
+            
+            self.inner_recmetric.ignore_space = False
+            metric = self.inner_recmetric([composed_preds, origin_label])
+            total_metric["G|Character|Acc|O"] = metric["acc"]
+            total_metric["G|Character|C_NED|O"] = metric["C_NED"]
+            total_metric["G|Character|G_NED|O"] = metric["G_NED"]
+            
+            for (f, fp), (s, sp), (th, thp) in zip(preds["first"], preds["second"], preds["third"]):
+                pass
+            
+        # if len(pure_grapheme) > 0:
+        #     total_metric["grapheme_acc"] = sum([total_metric[f"{g}_acc"] for g in pure_grapheme])/len(pure_grapheme)
+        #     total_metric["grapheme_C_NED"] = sum([total_metric[f"{g}_C_NED"] for g in pure_grapheme])/len(pure_grapheme)
+        #     total_metric["grapheme_G_NED"] = sum([total_metric[f"{g}_G_NED"] for g in pure_grapheme])/len(pure_grapheme)
+
+        if len(self.handling_grapheme) == 4: # ensemble
+            
+            # work level ensenble
+            ensemble_preds = []
+            for (f, fp), (s, sp), (th, thp), (c, cp) in zip(preds["first"], preds["second"], preds["third"], preds["character"]):
+                composed_pred, composed_conf = compose_korean_char(f, s, th, fp, sp, thp, self.first_main)
+                gp = [np.mean(np.array(x)) for x in [fp, sp, thp]]
+                gp = np.mean(np.array(gp))
+                cp = np.mean(np.array(cp))
+
+                if gp <= cp:
+                    ensemble_preds.append((c, cp))
+                else:
+                    ensemble_preds.append((composed_pred, gp))
+            
+            self.inner_recmetric.ignore_space = True
+            metric = self.inner_recmetric([ensemble_preds, origin_label])
+            total_metric["E|Character|Acc|X"] = metric["acc"]
+            total_metric["E|Character|C_NED|X"] = metric["C_NED"]
+            total_metric["E|Character|G_NED|X"] = metric["G_NED"]
+            
+            self.inner_recmetric.ignore_space = False
+            metric = self.inner_recmetric([ensemble_preds, origin_label])
+            total_metric["E|Character|Acc|O"] = metric["acc"]
+            total_metric["E|Character|C_NED|O"] = metric["C_NED"]
+            total_metric["E|Character|G_NED|O"] = metric["G_NED"]
+
+        self.metric = total_metric
+    
+        # for key, v in self.metric.items():
+        #     print(key, v)
+        # exit()
+        
+    def get_metric(self):
+        self.inner_recmetric.get_metric()
+        metric = self.metric
+        self.reset()
+        return metric
+        
+    def reset(self):
+        self.metric = None
+        
 class CNTMetric(object):
     def __init__(self, main_indicator='acc', **kwargs):
 
