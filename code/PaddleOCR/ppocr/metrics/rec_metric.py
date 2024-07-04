@@ -232,6 +232,9 @@ class RecMetric_Grapheme_v2(object):
 
     def __call__(self, pred_label, batch=None, *args, **kwargs):
         preds, labels = pred_label
+        # print(preds.keys())
+        # print(batch.keys())
+        
 
         total_metric = dict()
         
@@ -248,48 +251,51 @@ class RecMetric_Grapheme_v2(object):
                 character_grapheme["third"].append([third, probability])
 
             for g in ["first", "second", "third"]:  # 문자 방식 그래핌 추론
-                if g in self.handling_grapheme: 
-                    self.inner_recmetric.ignore_space = True
-                    metric = self.inner_recmetric([character_grapheme[g], labels[g]])    
-                    total_metric[f"C|{g}|Acc|X"] = metric["acc"]
-                    # total_metric[f"C|{g}|C_NED|X"] = metric["C_NED"]
-                    # total_metric[f"C|{g}|G_NED|X"] = metric["G_NED"]
-                
-                    self.inner_recmetric.ignore_space = False
-                    metric = self.inner_recmetric([character_grapheme[g], labels[g]])    
-                    total_metric[f"C|{g}|Acc|O"] = metric["acc"]
-                    # total_metric[f"C|{g}|C_NED|O"] = metric["C_NED"]
-                    # total_metric[f"C|{g}|G_NED|O"] = metric["G_NED"]                    
+                # if g in self.handling_grapheme:
+                g_name = g[0].upper()+g[1:]
+                self.inner_recmetric.ignore_space = True
+                metric = self.inner_recmetric([character_grapheme[g], labels[g]])    
+                total_metric[f"C|{g_name}|Acc|X"] = metric["acc"]
+                total_metric[f"C|{g_name}|C_NED|X"] = metric["C_NED"]
+                # total_metric[f"C|{g_nameg}|G_NED|X"] = metric["G_NED"]
+            
+                self.inner_recmetric.ignore_space = False
+                metric = self.inner_recmetric([character_grapheme[g], labels[g]])    
+                total_metric[f"C|{g_name}|Acc|O"] = metric["acc"]
+                total_metric[f"C|{g_name}|C_NED|O"] = metric["C_NED"]
+                # total_metric[f"C|{g_name}|G_NED|O"] = metric["G_NED"]                    
 
 
 
                 g = "character"
+                g_name = g[0].upper()+g[1:]
                 self.inner_recmetric.ignore_space = True
                 metric = self.inner_recmetric([preds[g], labels[g]])    
-                total_metric[f"C|{g}|Acc|X"] = metric["acc"]
-                # total_metric[f"C|{g}|C_NED|X"] = metric["C_NED"]
-                # total_metric[f"C|{g}|G_NED|X"] = metric["G_NED"]
+                total_metric[f"C|{g_name}|Acc|X"] = metric["acc"]
+                total_metric[f"C|{g_name}|C_NED|X"] = metric["C_NED"]
+                total_metric[f"C|{g_name}|G_NED|X"] = metric["G_NED"]
             
                 self.inner_recmetric.ignore_space = False
                 metric = self.inner_recmetric([preds[g], labels[g]])    
-                total_metric[f"C|{g}|Acc|O"] = metric["acc"]
-                # total_metric[f"C|{g}|C_NED|O"] = metric["C_NED"]
-                # total_metric[f"C|{g}|G_NED|O"] = metric["G_NED"]
+                total_metric[f"C|{g_name}|Acc|O"] = metric["acc"]
+                total_metric[f"C|{g_name}|C_NED|O"] = metric["C_NED"]
+                total_metric[f"C|{g_name}|G_NED|O"] = metric["G_NED"]
             
             
         for g in ["first", "second", "third"]:  # 그래핌 방식 그래핌 추론
             if g in self.handling_grapheme:
+                g_name = g[0].upper()+g[1:]
                 self.inner_recmetric.ignore_space = True
                 metric = self.inner_recmetric([preds[g], labels[g]])    
-                total_metric[f"G|{g}|Acc|X"] = metric["acc"]
-                # total_metric[f"G|{g}|C_NED|X"] = metric["C_NED"]
-                # total_metric[f"G|{g}|G_NED|X"] = metric["G_NED"]
+                total_metric[f"G|{g_name}|Acc|X"] = metric["acc"]
+                total_metric[f"G|{g_name}|C_NED|X"] = metric["C_NED"]
+                # total_metric[f"G|{g_name}|G_NED|X"] = metric["G_NED"]
             
                 self.inner_recmetric.ignore_space = False
                 metric = self.inner_recmetric([preds[g], labels[g]])    
-                total_metric[f"G|{g}|Acc|O"] = metric["acc"]
-                # total_metric[f"G|{g}|C_NED|O"] = metric["C_NED"]
-                # total_metric[f"G|{g}|G_NED|O"] = metric["G_NED"]
+                total_metric[f"G|{g_name}|Acc|O"] = metric["acc"]
+                total_metric[f"G|{g_name}|C_NED|O"] = metric["C_NED"]
+                # total_metric[f"G|{g_name}|G_NED|O"] = metric["G_NED"]
                 
 
         

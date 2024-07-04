@@ -10,6 +10,7 @@ import project
 from functools import reduce
 import pandas as pd
 import matplotlib.pyplot as plt
+import shutil
 
 def smooth(x, window):
     new = []
@@ -62,6 +63,8 @@ class WorkDB(DB):
         labelset_task = [set(labeldb.get_config(id)["task"]) for id in labelsets]
         task = list(reduce(lambda s1, s2: s1 & s2, labelset_task+[model_task]))
         
+        
+        
         assert 0 < len(task)
 
         config = {
@@ -86,6 +89,12 @@ class WorkDB(DB):
             train_config = yaml.load(f, Loader=yaml.FullLoader)
             with open(save_dir/"train_config.yml", "w") as f:
                 yaml.dump(train_config, f)
+                
+        new_weight_path = save_dir/"trained_model"/"latest.pdparams"
+        model_weight_path = Path(model_config["pretrained_model_weight"])
+        if model_weight_path.exists():
+            new_weight_path.parent.mkdir(exist_ok=True, parents=True)
+            shutil.copy(model_weight_path, new_weight_path)
                 
     def export(self, id, version=None, relative_to="absolute", command_to="global"):
         config = self.get_config(id, relative_to="absolute")
@@ -138,7 +147,19 @@ class WorkDB(DB):
         
         # config = self.get_config(id, relative_to="absolute", config_name=)
         
+    def modify_train_config2(self, id):
+        config = self.get_config(id, relative_to="project")
+        train_config_name = Path(config["train_config"]).name
         
+        train_config = super().get_config(id, config_name=train_config_name)
+        config = train_config
+        del config["grapheme"]
+        config["Global"]["grapheme"] = ["character", "first", "second", "third"]
+        super().update_config(id, train_config, config_name=train_config_name)
+        
+        # print(train_config_name)
+        
+        # config = self.get_config(id, relative_to="absolute", config_name=)
 
         
     
@@ -191,7 +212,10 @@ class WorkDB(DB):
         path = self.make_inference_model_path(id, version, relative_to=relative_to)
         return path if Path(path).exists() else None
 
-    def get_model_weight(self, id, version, relative_to="project", check_exist=True):
+    def get_model_weight(self, id, version, relative_to="absolute", check_exist=True):
+        if relative_to is not "absulute":
+            Exception("현재 relative_to 변수가 absolute가 아니면 무조건 latest weight만 반환되는 오류가 있는데 방치해둠...")
+        
         trained_epoch = self.get_trained_epoch(id)
         if check_exist:
             assert (version in ["best", "latest", "pretrained"]) or (isinstance(version, int) and version <= trained_epoch), f"version should be 'best', 'latest', 'pretrained', or positive integer less than trained_epoch {trained_epoch} but {version} is given"
@@ -199,15 +223,23 @@ class WorkDB(DB):
         config = self.get_config(id)
         model_config = ModelDB().get_config(config["model"], relative_to=relative_to)
         
-        if (version in [0, "pretrained"]) or (check_exist and trained_epoch == 0):
-            return str(model_config["pretrained_model_weight"])
+        # if (version in [0, "pretrained"]) or (check_exist and trained_epoch == 0):
+        #     return str(model_config["pretrained_model_weight"])
         
-        elif version == "best":
-            return self.relative_to(id, Path(config["trained_model_dir"])/"best_model/model.pdparams", relative_to=relative_to)
+        if version == "best":
+            path = self.relative_to(id, Path(config["trained_model_dir"])/"best_model/model.pdparams", relative_to=relative_to)
         elif version == "latest":
-            return self.relative_to(id, Path(config["trained_model_dir"])/"latest.pdparams", relative_to=relative_to)        
+            path = self.relative_to(id, Path(config["trained_model_dir"])/"latest.pdparams", relative_to=relative_to)      
         else:
-            return self.relative_to(id, Path(config["trained_model_dir"])/f"iter_epoch_{version}.pdparams", relative_to=relative_to)
+            path = self.relative_to(id, Path(config["trained_model_dir"])/f"iter_epoch_{version}.pdparams", relative_to=relative_to)
+    
+        if Path(path).exists():
+            
+            return path
+        else:
+            return self.relative_to(id, Path(config["trained_model_dir"])/"latest.pdparams", relative_to=relative_to) 
+    
+    
     
     def eval(self, id, version, task, relative_to="project", command_to="global", report_to="local", check_exist=True, labelsets=None, data_dir=None, save = True):
         item = self.get_report_value(id, version=version, task=task)

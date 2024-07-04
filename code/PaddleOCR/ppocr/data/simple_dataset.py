@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from charset_normalizer import CharsetMatches
 import numpy as np
 import cv2
 import math
@@ -20,9 +21,10 @@ import random
 import traceback
 from paddle.io import Dataset
 from .imaug import transform, create_operators
-
+from ppocr.utils.dataset_cache import DatasetCache
 
 class SimpleDataSet(Dataset):
+    
     def __init__(self, config, mode, logger, seed=None):
         super(SimpleDataSet, self).__init__()
         self.logger = logger
@@ -36,6 +38,11 @@ class SimpleDataSet(Dataset):
         label_file_list = dataset_config.pop('label_file_list')
         data_source_num = len(label_file_list)
         ratio_list = dataset_config.get("ratio_list", 1.0)
+        
+        self.cache = False
+        self.cache = True
+        
+        self.dataset_cache = DatasetCache()
 
         if isinstance(ratio_list, (float, int)):
             ratio_list = [float(ratio_list)] * int(data_source_num)
@@ -59,6 +66,8 @@ class SimpleDataSet(Dataset):
         self.ext_op_transform_idx = dataset_config.get("ext_op_transform_idx",2)
 
         self.need_reset = True in [x < 1 for x in ratio_list]
+        
+        
 
     def set_epoch_as_seed(self, seed, dataset_config):
         if self.mode == 'train':
@@ -144,17 +153,21 @@ class SimpleDataSet(Dataset):
         return ext_data
 
     def __getitem__(self, idx):
-        
         file_idx = self.data_idx_order_list[idx]
         data_line = self.data_lines[file_idx]
         try:
             data_line = data_line.decode('utf-8')
-            
             substr = data_line.strip("\n").split(self.delimiter)
             file_name = substr[0]
             file_name = self._try_parse_filename_list(file_name)
             label = substr[1]
             img_path = os.path.join(self.data_dir, file_name)
+            cache_key = img_path
+            if self.cache:
+                data = self.dataset_cache.load_samples_from_hdf5(cache_key)
+                if data:
+                    return data
+
             data = {'img_path': img_path, 'label': label}
             if not os.path.exists(img_path):
                 raise Exception("{} does not exist!".format(img_path))
@@ -170,14 +183,70 @@ class SimpleDataSet(Dataset):
             outs = None
     
         if outs is None:
+             
             # during evaluation, we should fix the idx to get same results for many times of evaluation.
             rnd_idx = np.random.randint(self.__len__(
             )) if self.mode == "train" else (idx + 1) % self.__len__()
             return self.__getitem__(rnd_idx)
-        return outs
+            
+        if self.cache:
+            pass
+            # self.dataset_cache.save_samples_to_hdf5(outs, cache_key)
+            
+
+        return outs            
 
     def __len__(self):
         return len(self.data_idx_order_list)
+
+class SimpleDataSet_Cache(SimpleDataSet):
+
+    def __getitem__(self, idx):
+        
+        file_idx = self.data_idx_order_list[idx]
+        data_line = self.data_lines[file_idx]
+        try:
+            data_line = data_line.decode('utf-8')
+            substr = data_line.strip("\n").split(self.delimiter)
+            file_name = substr[0]
+            file_name = self._try_parse_filename_list(file_name)
+            label = substr[1]
+            img_path = os.path.join(self.data_dir, file_name)
+            cache_key = img_path
+            if self.cache:
+                data = self.dataset_cache.load_samples_from_hdf5(cache_key)
+                if data:
+                    # print(cache_key, "hit")
+                    return None
+                else:
+                    pass
+                    # print(cache_key)
+            data = {'img_path': img_path, 'label': label}
+            if not os.path.exists(img_path):
+                raise Exception("{} does not exist!".format(img_path))
+            with open(data['img_path'], 'rb') as f:
+                img = f.read()
+                data['image'] = img
+            data['ext_data'] = self.get_ext_data()
+            outs = transform(data, self.ops)
+        except:
+            # self.logger.error(
+            #     "When parsing line {}, error happened with msg: {}".format(
+            #         data_line, traceback.format_exc()))
+            outs = None
+    
+        if outs is None:
+             
+            # during evaluation, we should fix the idx to get same results for many times of evaluation.
+            rnd_idx = np.random.randint(self.__len__(
+            )) if self.mode == "train" else (idx + 1) % self.__len__()
+            return self.__getitem__(rnd_idx)
+            
+        if self.cache:
+            pass
+            # self.dataset_cache.save_samples_to_hdf5(outs, cache_key)
+        return outs, cache_key
+        return outs            
 
 
 class MultiScaleDataSet(SimpleDataSet):
@@ -243,6 +312,7 @@ class MultiScaleDataSet(SimpleDataSet):
             wh_ratio = None
 
         data_line = self.data_lines[file_idx]
+    
         try:
             data_line = data_line.decode('utf-8')
             substr = data_line.strip("\n").split(self.delimiter)

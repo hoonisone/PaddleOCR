@@ -115,15 +115,20 @@ class CTCLabelDecode(BaseRecLabelDecode):
                                              use_space_char)
 
     def __call__(self, preds, label=None, *args, **kwargs):
-        if isinstance(preds, tuple) or isinstance(preds, list):
-            preds = preds[-1]
-        if isinstance(preds, paddle.Tensor):
-            preds = preds.numpy()
-        preds_idx = preds.argmax(axis=2)
-        preds_prob = preds.max(axis=2)
-        text = self.decode(preds_idx, preds_prob, is_remove_duplicate=True)
+        if preds is not None:
+            if isinstance(preds, tuple) or isinstance(preds, list):
+                preds = preds[-1]
+            if isinstance(preds, paddle.Tensor):
+                preds = preds.numpy()
+            preds_idx = preds.argmax(axis=2)
+            preds_prob = preds.max(axis=2)
+            text = self.decode(preds_idx, preds_prob, is_remove_duplicate=True)
+        else:
+            text = None
+            
         if label is None:
             return text
+        
         label = self.decode(label)
     
         return text, label
@@ -135,14 +140,14 @@ class CTCLabelDecode(BaseRecLabelDecode):
 class CTCLabelDecode_Grapheme(object):
     """ Convert between text-label and text-index """
 
-    def __init__(self, handling_grapheme, character_dict_path=None, use_space_char=False,
+    def __init__(self, grapheme, character_dict_path=None, use_space_char=False,
                  **kwargs):
-        self.handling_grapheme = handling_grapheme
+        self.grapheme = grapheme
         self.decode_dict = {
             grphame:CTCLabelDecode(character_dict_path = character_dict_path[grphame],
                                            use_space_char = use_space_char,
                                            **kwargs)
-            for grphame in self.handling_grapheme
+            for grphame in self.grapheme
         }
         # self.first_decode = CTCLabelDecode(character_dict_path = character_dict_path[0],
         #                                    use_space_char = use_space_char,
@@ -156,11 +161,11 @@ class CTCLabelDecode_Grapheme(object):
         # self.origin_decode = CTCLabelDecode(character_dict_path = character_dict_path[3],
         #                     use_space_char = use_space_char,
         #                     **kwargs)
-        self.character = {grapheme: self.decode_dict[grapheme].character for grapheme in self.handling_grapheme}
+        self.character = {grapheme: self.decode_dict[grapheme].character for grapheme in self.grapheme}
         # self.character = [self.first_decode.character, self.second_decode.character, self.third_decode.character, self.origin_decode.character] # character 속성이 있는지를 통해 조건을 체크하는 부분이 있어서 CTCLabelDecode와 동일하게 생성해줌
     def __call__(self, preds, label=None, *args, **kwargs):
         result = dict()
-        for grapheme in self.handling_grapheme:
+        for grapheme in self.grapheme:
             if label != None:
                 arg_label=label[f"{grapheme}_label"]
             else:
@@ -175,10 +180,10 @@ class CTCLabelDecode_Grapheme(object):
         # texts = {"first":first[0], "second":second[0], "third":third[0]}
         # labels = {"first":first[1], "second":second[1], "third":third[1]}
         
-        texts = {grapheme: result[grapheme][0] for grapheme in self.handling_grapheme}
+        texts = {grapheme: result[grapheme][0] for grapheme in self.grapheme}
         
         try: 
-            labels = {grapheme: result[grapheme][1] for grapheme in self.handling_grapheme}
+            labels = {grapheme: result[grapheme][1] for grapheme in self.grapheme}
         except: # 추론형인 레이블 없음
             labels = None
 

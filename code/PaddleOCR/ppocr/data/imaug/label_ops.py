@@ -1332,12 +1332,14 @@ class MultiLabelEncode11(object): # 수정 버전
 class MultiLabelEncode_Grapheme(object):
     def __init__(self,
                  max_text_length,
-                 handling_grapheme,
+                 grapheme,
                  character_dict_path=None,
                  use_space_char=False,
                  gtc_encode=None,
                  **kwargs):
-        self.handling_grapheme = handling_grapheme
+        self.grapheme = grapheme
+
+        # self.handling_grapheme = ["character", "first", "second", "third"]
         # character_dict_path = kwargs["character_dict_path_test"]
         
     # first: ./code/PaddleOCR/ppocr/utils/dict/korean_dict_grapheme_first.txt
@@ -1351,7 +1353,7 @@ class MultiLabelEncode_Grapheme(object):
                             use_space_char = use_space_char, 
                             gtc_encode = gtc_encode,
                     **kwargs)
-            for g in self.handling_grapheme
+            for g in self.grapheme
         }
         # self.first_grapheme_encoder = MultiLabelEncode(max_text_length, 
         #                                                character_dict_path = character_dict_path[0], 
@@ -1378,7 +1380,7 @@ class MultiLabelEncode_Grapheme(object):
         
         data_out = dict()
         data_out["origin_label"] = data["origin_label"]
-        for g in self.handling_grapheme:
+        for g in self.grapheme:
             data_copy = copy.deepcopy(data) 
             data_copy["label"] = data["label"][g]
             encoded_data = self.encoder_dict[g](data_copy)    

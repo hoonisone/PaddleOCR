@@ -25,8 +25,6 @@ import datetime
 import paddle
 import paddle.distributed as dist
 from tqdm import tqdm
-import cv2
-import numpy as np
 from argparse import ArgumentParser, RawDescriptionHelpFormatter
 
 from ppocr.utils.stats import TrainingStats
@@ -410,10 +408,8 @@ def train(config,
                         eval_class(preds[0], batch[2:], epoch_reset=(idx == 0))
                     else: # True
                         if config['Loss']['name'] in ['MultiLoss', 'MultiLoss_Grapheme']:  # for multi head loss (True)                            
-                            preds_args = {name: preds[name]["ctc"] for name in  config["Global"]["handling_grapheme"]}
-                            labels_args = {f"{name}_label": batch[f"{name}_label"]["label_ctc"] for name in  config["Global"]["handling_grapheme"]}
-                            
-                            
+                            preds_args = {name: (preds[name]["ctc"] if name in preds else None) for name in  config["Global"]["grapheme"]}
+                            labels_args = {f"{name}_label": batch[f"{name}_label"]["label_ctc"] for name in  config["Global"]["grapheme"]}
                             post_result = post_process_class(
                                 preds_args, labels_args)  # for CTC head out
                         elif config['Loss']['name'] in ['VLLoss']:
@@ -718,16 +714,18 @@ def eval(model,
             elif model_type in ['can']:
                 eval_class(preds[0], batch_numpy[2:], epoch_reset=(idx == 0))
             else:
-                
                 # preds_args = {name: preds[name]["ctc"] for name in config["Global"]["handling_grapheme"]}
                 # labels_args = {f"{name}_label": batch[f"{name}_label"]["label_ctc"] for name in config["Global"]["handling_grapheme"]}
-                if "handling_grapheme" in config["Global"]:
-                    preds_args = {name: preds[name] for name in config["Global"]["handling_grapheme"]}
-                    labels_args = {f"{name}_label": batch[f"{name}_label"]["label_ctc"] for name in config["Global"]["handling_grapheme"]}
+                if "grapheme" in config["Global"]:
+                    preds_args = {name: preds.get(name, None) for name in config["Global"]["grapheme"]}
+                    labels_args = {f"{name}_label": batch[f"{name}_label"]["label_ctc"] for name in config["Global"]["grapheme"]}
+                    
                     post_result = post_process_class(preds_args, labels_args)
+
                 else:
                     post_result = post_process_class(preds, batch["label"])
                 # print(f"post_result: {batch_numpy}")
+            
                 eval_class(post_result, batch_numpy)
 
             pbar.update(1)
