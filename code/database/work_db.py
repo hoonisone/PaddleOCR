@@ -212,32 +212,31 @@ class WorkDB(DB):
         path = self.make_inference_model_path(id, version, relative_to=relative_to)
         return path if Path(path).exists() else None
 
-    def get_model_weight(self, id, version, relative_to="absolute", check_exist=True):
+    def get_model_weight(self, id, version, relative_to="absolute", no_exist_handling = True):
         if relative_to is not "absulute":
             Exception("현재 relative_to 변수가 absolute가 아니면 무조건 latest weight만 반환되는 오류가 있는데 방치해둠...")
         
-        trained_epoch = self.get_trained_epoch(id)
-        if check_exist:
-            assert (version in ["best", "latest", "pretrained"]) or (isinstance(version, int) and version <= trained_epoch), f"version should be 'best', 'latest', 'pretrained', or positive integer less than trained_epoch {trained_epoch} but {version} is given"
-                
-        config = self.get_config(id)
-        model_config = ModelDB().get_config(config["model"], relative_to=relative_to)
+        assert (isinstance(version, int) and version > 0) or (isinstance(version, str) and (version in ["best", "latest", "origin"])), version
         
-        # if (version in [0, "pretrained"]) or (check_exist and trained_epoch == 0):
-        #     return str(model_config["pretrained_model_weight"])
+        config = self.get_config(id)
         
         if version == "best":
             path = self.relative_to(id, Path(config["trained_model_dir"])/"best_model/model.pdparams", relative_to=relative_to)
         elif version == "latest":
             path = self.relative_to(id, Path(config["trained_model_dir"])/"latest.pdparams", relative_to=relative_to)      
+        elif version == "origin": # 처음 모델 가중치 그대로 (초기화 또는 다른 테스크에서 pretrained)
+            model_config = ModelDB().get_config(config["model"], relative_to=relative_to)
+            path = str(model_config["pretrained_model_weight"])
         else:
             path = self.relative_to(id, Path(config["trained_model_dir"])/f"iter_epoch_{version}.pdparams", relative_to=relative_to)
     
-        if Path(path).exists():
-            
+        if Path(path).exists():    
             return path
         else:
-            return self.relative_to(id, Path(config["trained_model_dir"])/"latest.pdparams", relative_to=relative_to) 
+            if no_exist_handling:
+                return self.relative_to(id, Path(config["trained_model_dir"])/"latest.pdparams", relative_to=relative_to) 
+            else:
+                return None
     
     
     
