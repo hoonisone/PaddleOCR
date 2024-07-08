@@ -27,7 +27,6 @@ class DB:
     def get_path(self, id, config_name=None):
         
         config_name = self.config_name if config_name == None else config_name
-        
         return str(Path(self.PROJECT_ROOT)/self.dir/id/config_name).replace("\\", "/")
     
     def get_config(self, id, config_name=None):

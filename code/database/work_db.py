@@ -11,6 +11,7 @@ from functools import reduce
 import pandas as pd
 import matplotlib.pyplot as plt
 import shutil
+import itertools
 
 def smooth(x, window):
     new = []
@@ -183,16 +184,22 @@ class WorkDB(DB):
             return df.iloc[0]
     
     def get_trained_epoch(self, id):
-        files = list(Path(self.get_config(id, relative_to="absolute")["trained_model_dir"]).glob("iter_epoch_*.pdparams"))
-        if len(files) == 0:
-            return 0
-        return max([int(path.stem[11:]) for path in files])
+        def get_max(extension:str):
+            files = list(Path(self.get_config(id, relative_to="absolute")["trained_model_dir"]).glob(f"iter_epoch_*.{extension}"))
+            if len(files) == 0:
+                return 0    
+            else:
+                return max([int(path.stem[11:], base=0) for path in files])
+        max_list = [get_max(extension) for extension in ["pdparams", "pdopt", "states"]]
+        return max(max_list)
     
     def get_all_epoch(self, id):
-        files = list(Path(self.get_config(id, relative_to="absolute")["trained_model_dir"]).glob("iter_epoch_*.pdparams"))
-        epoch_list = [int(path.stem[11:]) for path in files]
-        return sorted(epoch_list)
+        def get_epoch(extension:str):            
+            files = list(Path(self.get_config(id, relative_to="absolute")["trained_model_dir"]).glob(f"iter_epoch_*.{extension}"))
+            return [int(path.stem[11:]) for path in files]
         
+        max_list = [get_epoch(extension) for extension in ["pdparams", "pdopt", "states"]]
+        return sorted(list(set(sum(max_list, []))))        
     
     def check_weight_exist(self, id, version):
         epoch_list = self.get_all_epoch(id)
@@ -212,29 +219,41 @@ class WorkDB(DB):
         path = self.make_inference_model_path(id, version, relative_to=relative_to)
         return path if Path(path).exists() else None
 
-    def get_model_weight(self, id, version, relative_to="absolute", no_exist_handling = True):
-        if relative_to is not "absulute":
-            Exception("현재 relative_to 변수가 absolute가 아니면 무조건 latest weight만 반환되는 오류가 있는데 방치해둠...")
+                    
         
+    
+    def make_model_weight_path(self, id, version, relative_to="absolute", extension = "pdparams"):
         assert (isinstance(version, int) and version > 0) or (isinstance(version, str) and (version in ["best", "latest", "origin"])), version
         
         config = self.get_config(id)
-        
         if version == "best":
-            path = self.relative_to(id, Path(config["trained_model_dir"])/"best_model/model.pdparams", relative_to=relative_to)
+            path = self.relative_to(id, Path(config["trained_model_dir"])/f"best_model/model.{extension}", relative_to=relative_to)
         elif version == "latest":
-            path = self.relative_to(id, Path(config["trained_model_dir"])/"latest.pdparams", relative_to=relative_to)      
+            path = self.relative_to(id, Path(config["trained_model_dir"])/f"latest.{extension}", relative_to=relative_to)      
         elif version == "origin": # 처음 모델 가중치 그대로 (초기화 또는 다른 테스크에서 pretrained)
             model_config = ModelDB().get_config(config["model"], relative_to=relative_to)
             path = str(model_config["pretrained_model_weight"])
+            path = path[:-8]+extension
         else:
-            path = self.relative_to(id, Path(config["trained_model_dir"])/f"iter_epoch_{version}.pdparams", relative_to=relative_to)
+            path = self.relative_to(id, Path(config["trained_model_dir"])/f"iter_epoch_{version}.{extension}", relative_to=relative_to)
+        return path
+            
+    def weight_file_exist(self, id, version):
+        for extension in ["pdparams", "pdopt", "states"]:
+            if Path(self.make_model_weight_path(id, version, relative_to="absolute", extension=extension)).exists():
+                return True
+        return False
+
+    def get_model_weight(self, id, version, relative_to="absolute", no_exist_handling = True):
+        if relative_to is not "absulute":
+            Exception("현재 relative_to 변수가 absolute가 아니면 무조건 latest weight만 반환되는 오류가 있는데 방치해둠...")
     
+        path = self.make_model_weight_path(id, version, relative_to=relative_to)    
         if Path(path).exists():    
             return path
         else:
             if no_exist_handling:
-                return self.relative_to(id, Path(config["trained_model_dir"])/"latest.pdparams", relative_to=relative_to) 
+                return self.make_model_weight_path(id, "latest", relative_to=relative_to)
             else:
                 return None
     
