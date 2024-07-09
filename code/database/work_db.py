@@ -280,7 +280,7 @@ class WorkDB(DB):
         labelset_configs = [LabelsetDB().get_config(id, relative_to="project") for id in config["labelsets"]]
         
         train_config = config["train_config"]
-        model_weight = self.get_model_weight(id, version, check_exist=check_exist)
+        model_weight = self.get_model_weight(id, version, no_exist_handling=False) # 위에서 점검해서, weight이 없는 경우는 없음
 
         if (data_dir == None) or (labelsets == None):
             data_dir = labelset_configs[0]["dataset_dir"]
