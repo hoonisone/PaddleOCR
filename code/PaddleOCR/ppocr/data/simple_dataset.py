@@ -39,10 +39,190 @@ class SimpleDataSet(Dataset):
         data_source_num = len(label_file_list)
         ratio_list = dataset_config.get("ratio_list", 1.0)
         
-        self.cache = False
-        self.cache = True
+        self.cache = dataset_config.get('use_cache', True)
+        if self.cache:
+            self.cache_file = dataset_config.get('cache_file', "/home/dataset_cache.h5")
         
-        self.dataset_cache = DatasetCache()
+            self.dataset_cache = DatasetCache(self.cache_file)
+
+        if isinstance(ratio_list, (float, int)):
+            ratio_list = [float(ratio_list)] * int(data_source_num)
+
+        assert len(
+            ratio_list
+        ) == data_source_num, "The length of ratio_list should be the same as the file_list."
+        self.data_dir = dataset_config['data_dir']
+        self.do_shuffle = loader_config['shuffle']
+        self.seed = seed
+
+        logger.info("Initialize indexs of datasets:%s" % label_file_list)
+        self.data_lines = self.get_image_info_list(label_file_list, ratio_list)
+        self.data_idx_order_list = list(range(len(self.data_lines)))
+        if self.mode == "train" and self.do_shuffle:
+            self.shuffle_data_random()
+
+        self.set_epoch_as_seed(self.seed, dataset_config)
+
+        self.ops = create_operators(dataset_config['transforms'], global_config)
+        self.ext_op_transform_idx = dataset_config.get("ext_op_transform_idx",2)
+
+        self.need_reset = True in [x < 1 for x in ratio_list]
+        
+        
+
+    def set_epoch_as_seed(self, seed, dataset_config):
+        if self.mode == 'train':
+            try:
+                border_map_id = [index
+                    for index, dictionary in enumerate(dataset_config['transforms'])
+                    if 'MakeBorderMap' in dictionary][0]
+                shrink_map_id = [index
+                    for index, dictionary in enumerate(dataset_config['transforms'])
+                    if 'MakeShrinkMap' in dictionary][0]
+
+                dataset_config['transforms'][border_map_id]['MakeBorderMap'][
+                    'epoch'] = seed if seed is not None else 0
+
+                dataset_config['transforms'][shrink_map_id]['MakeShrinkMap'][
+                    'epoch'] = seed if seed is not None else 0
+            except Exception as E:
+                print(E)
+                return
+
+    def get_image_info_list(self, file_list, ratio_list):
+        # ratio_list는 각 대응되는 file_list를 얼마나 쓸 것인지 결정하는 듯
+        if isinstance(file_list, str): # 이런식으로 하면 복수개인 경우 list, 단일 값인 경우 1개만 적어도 되겠네
+            file_list = [file_list]
+        data_lines = []
+        for idx, file in enumerate(file_list): # ratio_list와 file_list를 zip으로 연결하면 더 깔끔할 텐데
+            with open(file, "rb") as f: # 왜 byte 모드로 읽어들였을까?
+                lines = f.readlines()
+                if self.mode == "train" or ratio_list[idx] < 1.0:
+                    random.seed(self.seed) # Dataset init 때 한 번만 하면 안되나?, 아 항상 특정 순서로 하려면 함수를 수행할 때 마다 하는게 맞을 듯
+                    lines = random.sample(lines,
+                                          round(len(lines) * ratio_list[idx]))
+                data_lines.extend(lines) # shuffle 부분을 전체를 다 가져온 후 하면 안되는건가?
+        return data_lines
+
+    def shuffle_data_random(self):
+        random.seed(self.seed)
+        random.shuffle(self.data_lines)
+        return
+
+    def _try_parse_filename_list(self, file_name):
+        # multiple images -> one gt label
+        # 이건 어떤 경우에 쓰는 것인가?.
+        if len(file_name) > 0 and file_name[0] == "[":
+            try:
+                info = json.loads(file_name)
+                file_name = random.choice(info)
+            except:
+                pass
+        return file_name
+
+    def get_ext_data(self):
+        ext_data_num = 0
+        for op in self.ops:
+            if hasattr(op, 'ext_data_num'):
+                ext_data_num = getattr(op, 'ext_data_num')
+                break
+        load_data_ops = self.ops[:self.ext_op_transform_idx]
+        ext_data = []
+
+        while len(ext_data) < ext_data_num:
+            file_idx = self.data_idx_order_list[np.random.randint(self.__len__(
+            ))]
+            data_line = self.data_lines[file_idx]
+            data_line = data_line.decode('utf-8')
+            substr = data_line.strip("\n").split(self.delimiter)
+            file_name = substr[0]
+            file_name = self._try_parse_filename_list(file_name)
+            label = substr[1]
+            img_path = os.path.join(self.data_dir, file_name)
+            data = {'img_path': img_path, 'label': label}
+            if not os.path.exists(img_path):
+                continue
+            with open(data['img_path'], 'rb') as f:
+                img = f.read()
+                data['image'] = img
+            data = transform(data, load_data_ops)
+
+            if data is None:
+                continue
+            if 'polys' in data.keys():
+                if data['polys'].shape[1] != 4:
+                    continue
+            ext_data.append(data)
+        return ext_data
+
+    def __getitem__(self, idx):
+        file_idx = self.data_idx_order_list[idx] # self.data_idx_order_list[idx]는 항상 idx와 동일한 것 아닌가?..
+        data_line = self.data_lines[file_idx] # data_line은 idx에 대한 데이터 정보 한 줄을 의미함 (label file에서의 한 줄)
+        try:
+            data_line = data_line.decode('utf-8') # data_line을 byte 형태로 읽어서 관리하고 있기 때문에 decode 과정이 필요
+            substr = data_line.strip("\n").split(self.delimiter)
+            file_name = substr[0]
+            file_name = self._try_parse_filename_list(file_name) # file_name 이 json인 경우 처리해주는 건데, 그런 경우가 언제 있는지?...
+            label = substr[1]
+            img_path = os.path.join(self.data_dir, file_name)
+            if self.cache:
+                cache_key = img_path
+                data = self.dataset_cache.load_samples_from_hdf5(cache_key)
+                if data:
+                    return data
+
+            data = {'img_path': img_path, 'label': label}
+            if not os.path.exists(img_path):
+                raise Exception("{} does not exist!".format(img_path))
+            with open(data['img_path'], 'rb') as f:
+                img = f.read() # 바이트로 넘기네? PIL.Image나 numpy.array가 아니고? 이유는 뭘까? 나중에 추가 변환을 해야 해서?
+                data['image'] = img
+            data['ext_data'] = self.get_ext_data()
+            outs = transform(data, self.ops)
+        except:
+            # self.logger.error(
+            #     "When parsing line {}, error happened with msg: {}".format(
+            #         data_line, traceback.format_exc()))
+            outs = None
+    
+        if outs is None:
+            # during evaluation, we should fix the idx to get same results for many times of evaluation.
+            rnd_idx = np.random.randint(self.__len__(
+            )) if self.mode == "train" else (idx + 1) % self.__len__()
+            return self.__getitem__(rnd_idx)
+            
+        if self.cache:
+            pass
+            # self.dataset_cache.save_samples_to_hdf5(outs, cache_key)
+            
+
+        return outs            
+
+    def __len__(self):
+        return len(self.data_idx_order_list)
+
+
+class SimpleDataSet_Test(Dataset):
+    
+    def __init__(self, config, mode, logger, seed=None):
+        super(SimpleDataSet_Test, self).__init__()
+        self.logger = logger
+        self.mode = mode.lower()
+
+        global_config = config['Global']
+        dataset_config = config[mode]['dataset']
+        loader_config = config[mode]['loader']
+
+        self.delimiter = dataset_config.get('delimiter', '\t')
+        label_file_list = dataset_config.pop('label_file_list')
+        data_source_num = len(label_file_list)
+        ratio_list = dataset_config.get("ratio_list", 1.0)
+        
+        self.cache = dataset_config.get('use_cache', True)
+        if self.cache:
+            self.cache_file = dataset_config.get('cache_file', "/home/dataset_cache.h5")
+        
+            self.dataset_cache = DatasetCache(self.cache_file)
 
         if isinstance(ratio_list, (float, int)):
             ratio_list = [float(ratio_list)] * int(data_source_num)
@@ -183,7 +363,6 @@ class SimpleDataSet(Dataset):
             outs = None
     
         if outs is None:
-             
             # during evaluation, we should fix the idx to get same results for many times of evaluation.
             rnd_idx = np.random.randint(self.__len__(
             )) if self.mode == "train" else (idx + 1) % self.__len__()
@@ -198,7 +377,7 @@ class SimpleDataSet(Dataset):
 
     def __len__(self):
         return len(self.data_idx_order_list)
-
+    
 class SimpleDataSet_Cache(SimpleDataSet):
 
     def __getitem__(self, idx):

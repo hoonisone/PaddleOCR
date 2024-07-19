@@ -22,8 +22,6 @@ from ppocr.utils.korean_compose import compose_korean_char, decompose_korean_cha
 
 def grapheme_edit_dis(x, y):
     _x, _y = x, y
-    x = x.replace(" ", "")
-    y = y.replace(" ", "")
     if len(x) == 0 or len(y) == 0:
         if len(x) == len(y):
             return 1

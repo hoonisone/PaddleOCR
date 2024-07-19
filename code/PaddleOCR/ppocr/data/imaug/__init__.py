@@ -54,6 +54,7 @@ def transform(data, ops=None):
         ops = []
     for op in ops:
         data = op(data)
+        
         if data is None:
             return None
     return data

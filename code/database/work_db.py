@@ -493,22 +493,24 @@ class WorkDB(DB):
     
     
     
-    def draw_rec_graph_v2(self, id, window=1, tasks = ["train", "eval", "test"], labels = ["train", "eval", "test"], metrics = ["acc", "norm_edit"]):
+    def draw_rec_graph_v2(self, id, window=1, tasks = ["train", "eval", "test"], labels = ["train", "eval", "test"], metrics = ["acc", "norm_edit"], titles = None, linestyle = "-", color = None):
         plt.gcf().set_size_inches(4*len(metrics), 3)
         
         df = self.get_report_df(id).sort_values("version")
         
         for i, metric in enumerate(metrics):
             plt.subplot(1, len(metrics), i+1)
-            plt.title(metric)
+            inner_title = titles[i] if titles else metric
+            plt.title(inner_title) 
             plt.xlabel("Epochs")
             for task, label in zip(tasks, labels):
                 task_df = df[df["task"] == task]
                 data = smooth(task_df[metric], window=window)
                 if task == "eval":
                     task = "test"
-                plt.plot(task_df["version"], data, label=label)
-            plt.legend(loc='upper center', bbox_to_anchor=(0.5, -0.2), ncol=2)
+                plt.plot(task_df["version"], data, label=label, linestyle = linestyle, color = color)
+            if i == 0:
+                plt.legend(loc='upper center', bbox_to_anchor=(0.5, -0.2), ncol=2)
             
         # plt.subplot(1, 2, 2)
         # plt.title(f"Norm-Edit-Distance")

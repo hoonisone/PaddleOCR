@@ -20,7 +20,7 @@ from __future__ import print_function
 from __future__ import unicode_literals
 
 import sys
-import six
+import six # 파이썬 2, 3 간의 호환을 위한 라이브러리
 import cv2
 import numpy as np
 import math
@@ -41,18 +41,23 @@ class DecodeImage(object):
 
     def __call__(self, data):
         img = data['image']
-        if six.PY2:
+        if six.PY2: # 파이썬 버전 2를 사용한다면 
             assert type(img) is str and len(
                 img) > 0, "invalid input 'img' in DecodeImage"
-        else:
+        else: # 버전 3을 말하는 거겠지?
             assert type(img) is bytes and len(
                 img) > 0, "invalid input 'img' in DecodeImage"
+            
+        # 왜 두 버전이 다른지는 아직 잘 모르겠군
+            
         img = np.frombuffer(img, dtype='uint8')
         if self.ignore_orientation:
             img = cv2.imdecode(img, cv2.IMREAD_IGNORE_ORIENTATION |
                                cv2.IMREAD_COLOR)
         else:
-            img = cv2.imdecode(img, 1)
+            img = cv2.imdecode(img, 1) # 여기서 1은 cv2.IMREAD_COLOR임
+        # 즉 위 조건문에서 차이는 cv2.IMREAD_IGNORE_ORIENTATION이게 있냐 없냐임
+        
         if img is None:
             return None
         if self.img_mode == 'GRAY':

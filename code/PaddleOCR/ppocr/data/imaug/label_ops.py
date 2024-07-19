@@ -1504,6 +1504,7 @@ class ABINetLabelEncode(BaseRecLabelEncode):
         text = data['label']
         text = self.encode(text)
         if text is None:
+            
             return None
         if len(text) >= self.max_text_len:
             return None

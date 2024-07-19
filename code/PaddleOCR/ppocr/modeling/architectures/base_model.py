@@ -85,6 +85,7 @@ class BaseModel(nn.Layer):
         y = dict()
         if self.use_transform: # pass
             x = self.transform(x)
+            
         if self.use_backbone:
             x = self.backbone(x)
         if isinstance(x, dict):

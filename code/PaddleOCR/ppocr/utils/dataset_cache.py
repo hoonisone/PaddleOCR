@@ -10,8 +10,8 @@ os.environ['HDF5_USE_FILE_LOCKING'] = 'FALSE'
 # Path("/home/dataset_cache.h5").unlink()
 
 class DatasetCache:
-    def __init__(self):
-        self.filename = "/home/dataset_cache.h5"
+    def __init__(self, cache_file):
+        self.filename = cache_file
         self.target_filename = self.filename
         # i = 1
         # self.target_filename = f"/home/dataset_cache{i}.h5"
