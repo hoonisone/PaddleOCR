@@ -23,23 +23,27 @@ from paddle.io import Dataset
 from .imaug import transform, create_operators
 from ppocr.utils.dataset_cache import DatasetCache
 
-class SimpleDataSet(Dataset):
-    
+class SimpleDataSet(Dataset): 
     def __init__(self, config, mode, logger, seed=None):
+        
         super(SimpleDataSet, self).__init__()
-        self.logger = logger
-        self.mode = mode.lower()
+        self.logger = logger # 메인 코드에서 logger를 세팅한 뒤 각 객체에 넘겨 공유 -> 일관된 로그 출력 및 관리 가능
+        self.mode = mode.lower() # 소문자로 통일하면 대소 문자 구분 실수를 줄일 수 있을것이다.
 
+
+        # 필요한 sub config 파일 추출
         global_config = config['Global']
         dataset_config = config[mode]['dataset']
         loader_config = config[mode]['loader']
+        
 
+        # config로 부터 필요한 데이터(속성, 옵션) 추출
         self.delimiter = dataset_config.get('delimiter', '\t')
-        label_file_list = dataset_config.pop('label_file_list')
+        label_file_list = dataset_config.pop('label_file_list') # 왜 get이 아니라 pop으로 했을까?
         data_source_num = len(label_file_list)
         ratio_list = dataset_config.get("ratio_list", 1.0)
-        
         self.cache = dataset_config.get('use_cache', True)
+
         if self.cache:
             self.cache_file = dataset_config.get('cache_file', "/home/dataset_cache.h5")
         
@@ -48,17 +52,17 @@ class SimpleDataSet(Dataset):
         if isinstance(ratio_list, (float, int)):
             ratio_list = [float(ratio_list)] * int(data_source_num)
 
-        assert len(
-            ratio_list
-        ) == data_source_num, "The length of ratio_list should be the same as the file_list."
+        assert len(ratio_list) == data_source_num, "The length of ratio_list should be the same as the file_list."
+        # config 파일에 2개의 값을 입력해야 하고, 두 값의 특정 제약 조건이 있는 경우임, 이럴때는 입력 값 체크가 필요함
+
         self.data_dir = dataset_config['data_dir']
         self.do_shuffle = loader_config['shuffle']
-        self.seed = seed
+        self.seed = seed # 이 값도 config로 받아도 되지 않나?
 
         logger.info("Initialize indexs of datasets:%s" % label_file_list)
         self.data_lines = self.get_image_info_list(label_file_list, ratio_list)
-        self.data_idx_order_list = list(range(len(self.data_lines)))
-        if self.mode == "train" and self.do_shuffle:
+        self.data_idx_order_list = list(range(len(self.data_lines))) # 언제 쓰는걸까?
+        if self.mode == "train" and self.do_shuffle: # train이 아니면 suffle이 의미가 없긴 하지
             self.shuffle_data_random()
 
         self.set_epoch_as_seed(self.seed, dataset_config)
@@ -69,8 +73,19 @@ class SimpleDataSet(Dataset):
         self.need_reset = True in [x < 1 for x in ratio_list]
         
         
+    """
+        self.data_lines: 각 샘플별 정보를 담는 리스트
+    """
+        
 
     def set_epoch_as_seed(self, seed, dataset_config):
+        """
+            seed로 설정 가능한 옵션을 갖는 transform 함수에 대해 주어진 seed로 세팅하는 함수
+            Args:
+                - seed(int): 세팅하고 싶은 seed 값
+                - dataset_config(dict): 설정을 바꾸고 싶은 대상 config 데이터
+
+        """
         if self.mode == 'train':
             try:
                 border_map_id = [index
@@ -90,14 +105,26 @@ class SimpleDataSet(Dataset):
                 return
 
     def get_image_info_list(self, file_list, ratio_list):
+        """
+            데이터 셋의 샘플 리스트를 읽어들여 통합하여 반환
+            Args:
+                file_list (list[str], str): 레이블 파일 리스트 []
+                ratio_list (list): 각 레이블 파일별로 얼마나 사용할 지
+
+            Return:
+                (list): 전체 데이터 샘플 정보 리스트 ex [sample1, sample2, ...]
+        """
         # ratio_list는 각 대응되는 file_list를 얼마나 쓸 것인지 결정하는 듯
+        
         if isinstance(file_list, str): # 이런식으로 하면 복수개인 경우 list, 단일 값인 경우 1개만 적어도 되겠네
-            file_list = [file_list]
+            file_list = [file_list] # 이 부분은 함수 내부 말고 객체 init 단에서 수행했어도 좋았을 듯
+
+
         data_lines = []
         for idx, file in enumerate(file_list): # ratio_list와 file_list를 zip으로 연결하면 더 깔끔할 텐데
             with open(file, "rb") as f: # 왜 byte 모드로 읽어들였을까?
                 lines = f.readlines()
-                if self.mode == "train" or ratio_list[idx] < 1.0:
+                if self.mode == "train" or ratio_list[idx] < 1.0: # 왜 train으로 한정했을까? eval, test도 그대로 적용해도 될 텐데?
                     random.seed(self.seed) # Dataset init 때 한 번만 하면 안되나?, 아 항상 특정 순서로 하려면 함수를 수행할 때 마다 하는게 맞을 듯
                     lines = random.sample(lines,
                                           round(len(lines) * ratio_list[idx]))
@@ -110,9 +137,17 @@ class SimpleDataSet(Dataset):
         return
 
     def _try_parse_filename_list(self, file_name):
-        # multiple images -> one gt label
-        # 이건 어떤 경우에 쓰는 것인가?.
+        """_summary_
+            extract only one file name
+        Args:
+            file_name (json, str): file_name 정보
+
+        Returns:
+            str: file_name 중 하나 반황
+        """
         if len(file_name) > 0 and file_name[0] == "[":
+            # 개발자가 곧 인자 값을 작성하는 사람이니 "["만으로 구분하는게 큰 문제가 되지 않을 수 있지만
+            # json으로 파싱 가능한가? 라고 했다면 더 좋지 않을까?
             try:
                 info = json.loads(file_name)
                 file_name = random.choice(info)
@@ -120,7 +155,7 @@ class SimpleDataSet(Dataset):
                 pass
         return file_name
 
-    def get_ext_data(self):
+    def get_ext_data(self): # 무슨 말인지 모르겠음 (ext -> extension? 더 많은 데이터를 포함한다는것일까?)
         ext_data_num = 0
         for op in self.ops:
             if hasattr(op, 'ext_data_num'):
@@ -128,7 +163,7 @@ class SimpleDataSet(Dataset):
                 break
         load_data_ops = self.ops[:self.ext_op_transform_idx]
         ext_data = []
-
+ 
         while len(ext_data) < ext_data_num:
             file_idx = self.data_idx_order_list[np.random.randint(self.__len__(
             ))]
@@ -520,3 +555,7 @@ class MultiScaleDataSet(SimpleDataSet):
             rnd_idx = (idx + 1) % self.__len__()
             return self.__getitem__([img_width, img_height, rnd_idx, wh_ratio])
         return outs
+
+
+if __name__ == "__main__":
+    print("hello")
