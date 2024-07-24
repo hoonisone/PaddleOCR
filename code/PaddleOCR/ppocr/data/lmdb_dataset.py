@@ -26,6 +26,7 @@ from .imaug import transform, create_operators
 
 class LMDBDataSet(Dataset):
     def __init__(self, config, mode, logger, seed=None):
+
         super(LMDBDataSet, self).__init__()
         
         global_config = config['Global']
@@ -49,7 +50,6 @@ class LMDBDataSet(Dataset):
     def load_hierarchical_lmdb_dataset(self, data_dir):
         lmdb_sets = {}
         dataset_idx = 0
-        print(data_dir)
         for dirpath, dirnames, filenames in os.walk(data_dir + '/'):
 
             if not dirnames:
@@ -68,6 +68,13 @@ class LMDBDataSet(Dataset):
         return lmdb_sets
 
     def dataset_traversal(self):
+        """_summary_
+            lmdb dataset을 순회하며 각 데이터의 index(lmdb index, file index)를 저장
+        Returns:
+            numpy.array(n, 2): data_idx_order_list
+            - n(int): number of samples
+            - 2(int): lmdb index and file index
+        """
         lmdb_num = len(self.lmdb_sets)
         total_sample_num = 0
         for lno in range(lmdb_num):

@@ -147,6 +147,7 @@ class PositionAttention(nn.Layer):
         for i in range(0, len(self.k_encoder)):
             k = self.k_encoder[i](k)
             features.append(k)
+            # k_encoder를 한 번에 수행해도 되지만, 중간 결과를 저장해두고 나중에 사용하는 방식을 사용
         for i in range(0, len(self.k_decoder) - 1):
             k = self.k_decoder[i](k)
             # print(k.shape, features[len(self.k_decoder) - 2 - i].shape)
@@ -175,7 +176,7 @@ class ABINetHead(nn.Layer):
     def __init__(self,
                  in_channels,
                  out_channels,
-                 d_model=512,
+                 d_model=512,  
                  nhead=8,
                  num_layers=3,
                  dim_feedforward=2048,
@@ -221,9 +222,13 @@ class ABINetHead(nn.Layer):
         x = x.transpose([0, 2, 3, 1])
         _, H, W, C = x.shape
         feature = x.flatten(1, 2)
-        feature = self.pos_encoder(feature)
+        feature = self.pos_encoder(feature) # 미리 계산된 PE 상수 값에 대해 feature 범위 만큼만 추출하여 더함, 그 뒤에 dropout
+        # Positional Encoding에서는 [sequence length, batch size, feature dim]으로 입력을 받는다.
+        # 근데 지금은 [batch size, sequence length, feature dim]으로 입력을 받는다.
         for encoder_layer in self.encoder:
-            feature = encoder_layer(feature)
+            feature = encoder_layer(feature)# multi-head attention
+            # input: [B, S, D] batch size, sequence length, feature dim
+            # output: [B, S, D] batch size, sequence length, feature dim
         feature = feature.reshape([0, H, W, C]).transpose([0, 3, 1, 2])
         v_feature, attn_scores = self.decoder(
             feature)  # (B, N, C), (B, C, H, W)

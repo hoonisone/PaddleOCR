@@ -46,12 +46,13 @@ class DecodeImage(object):
                 img) > 0, "invalid input 'img' in DecodeImage"
         else: # 버전 3을 말하는 거겠지?
             assert type(img) is bytes and len(
-                img) > 0, "invalid input 'img' in DecodeImage"
+                img) > 0, "invalid input 'img' in DecodeImage" # bytes 형태여야 하는 군
             
         # 왜 두 버전이 다른지는 아직 잘 모르겠군
-            
+        
+        # 이유는 모르겠으나 byt
         img = np.frombuffer(img, dtype='uint8')
-        if self.ignore_orientation:
+        if self.ignore_orientation: # 
             img = cv2.imdecode(img, cv2.IMREAD_IGNORE_ORIENTATION |
                                cv2.IMREAD_COLOR)
         else:

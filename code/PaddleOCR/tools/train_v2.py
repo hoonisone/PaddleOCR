@@ -42,7 +42,6 @@ import tools.program_v2 as program
 
 dist.get_world_size()
 
-
 def main(config, device, logger, vdl_writer):
 
     # init dist environment
@@ -241,7 +240,6 @@ def test_reader(config, device, logger):
 
 
 if __name__ == '__main__':
-    print("시작")
     config, device, logger, vdl_writer = program.preprocess(is_train=True)
     # print(config)
     # print(device)

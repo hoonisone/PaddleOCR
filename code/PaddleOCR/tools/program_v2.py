@@ -792,9 +792,11 @@ def get_center(model, eval_dataloader, post_process_class):
 
 def preprocess(is_train=False):
     FLAGS = ArgsParser().parse_args()
+
     profiler_options = FLAGS.profiler_options
     config = load_config(FLAGS.config)
     config = merge_config(config, FLAGS.opt)
+
     profile_dic = {"profiler_options": FLAGS.profiler_options}
     config = merge_config(config, profile_dic)
 
