@@ -377,7 +377,7 @@ class MultiheadAttention(nn.Layer):
         self.out_proj = nn.Linear(embed_dim, embed_dim)
 
     def forward(self, query, key=None, attn_mask=None):
-
+            
         qN = query.shape[1]
 
         if self.self_attn:

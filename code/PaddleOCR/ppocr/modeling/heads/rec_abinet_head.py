@@ -233,8 +233,10 @@ class ABINetHead(nn.Layer):
         v_feature, attn_scores = self.decoder(
             feature)  # (B, N, C), (B, C, H, W)
         vis_logits = self.cls(v_feature)  # (B, N, C)
+        # logits은 token이 각 class에 속할 확률을 나타낸다.
+        # (B, N, C) -> 샘플별, 토큰 별 class에 속할 확률 (확률 보단 적합도에 가깝다. 0~1은 아니고 0~무한대의 값)
         logits = vis_logits
-        vis_lengths = _get_length(vis_logits)
+        vis_lengths = _get_length(vis_logits) # 
         if self.use_lang:
             align_logits = vis_logits
             align_lengths = vis_lengths
@@ -270,16 +272,23 @@ class ABINetHead(nn.Layer):
 
 
 def _get_length(logit):
-    """ Greed decoder to obtain length from logit"""
-    out = (logit.argmax(-1) == 0)
-    abn = out.any(-1)
+    """ 
+    Description:
+        Greed decoder to obtain length from logit
+    Args:
+        logit: (B, N, C) where N is length, B is batch size and C is classes number
+    Returns:
+        out: (B,) where B is batch size
+    """
+    out = (logit.argmax(-1) == 0) # 0은 stop token class
+    abn = out.any(-1) # 샘플에 stop token이 있는가?
     out_int = out.cast('int32')
     out = (out_int.cumsum(-1) == 1) & out
     out = out.cast('int32')
     out = out.argmax(-1)
-    out = out + 1
+    out = out + 1 # stop token을 포함한 길이
     len_seq = paddle.zeros_like(out) + logit.shape[1]
-    out = paddle.where(abn, out, len_seq)
+    out = paddle.where(abn, out, len_seq) # stop token이 없는 샘플은 max length로 설정
     return out
 
 
