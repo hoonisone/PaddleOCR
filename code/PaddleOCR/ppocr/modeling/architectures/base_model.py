@@ -26,7 +26,7 @@ __all__ = ['BaseModel']
 
 class BaseModel(nn.Layer):
     def __init__(self, config, **kwargs):
-
+        print("111")
         """
         the module for OCR.
         args:
@@ -69,6 +69,7 @@ class BaseModel(nn.Layer):
             self.neck = build_neck(config['Neck'])
             in_channels = self.neck.out_channels
 
+
         # # build head, head is need for det, rec and cls
         if 'Head' not in config or config['Head'] is None:
             self.use_head = False
@@ -77,7 +78,6 @@ class BaseModel(nn.Layer):
             config["Head"]['in_channels'] = in_channels
 
             self.head = build_head(config["Head"], **kwargs)
-
         self.return_all_feats = config.get("return_all_feats", False)
 
     def forward(self, x, data=None):

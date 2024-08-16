@@ -542,6 +542,8 @@ def resize_norm_img(img,
                     image_shape,
                     padding=True,
                     interpolation=cv2.INTER_LINEAR):
+    # 이미지 사이즈에 따라 원본이 목표 보다 큰 경우와 작은 경우를 구분하며
+    # 패딩 옵션에 따라 이미지 공백을 패딩으로 채울 지 등을 고려함
     imgC, imgH, imgW = image_shape
     h = img.shape[0]
     w = img.shape[1]

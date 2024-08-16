@@ -16,6 +16,7 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+from audioop import avg
 import os
 import sys
 import platform
@@ -262,16 +263,17 @@ def train(config,
     # print(lr_scheduler.get_lr())
     # print(lr_scheduler.base_lr)
     # exit()
+    
+    x = train_dataloader.dataset[0]
+    
     for epoch in range(start_epoch, epoch_num + 1):
         if train_dataloader.dataset.need_reset:
             train_dataloader = build_dataloader(
                 config, 'Train', device, logger, seed=epoch)
             max_iter = len(train_dataloader) - 1 if platform.system(
             ) == "Windows" else len(train_dataloader)
+
         for idx, batch in enumerate(train_dataloader):
-            print(batch)
-            
-            exit()
             profiler.add_profiler_step(profiler_options)
             train_reader_cost += time.time() - reader_start
             if idx >= max_iter:
@@ -374,19 +376,27 @@ def train(config,
                 # # exit()
                 # print(type(preds))
                 # print(preds.keys())
-                
-
-                
-                
+                    #              'align': all_a_res,
+                    # 'lang': all_l_res,
+                    # 'vision': vis_logits
+                # print(len(preds["vision"]))
+                # logit = preds["vision"][0]
+                # print(logit.shape)
+                # print(logit[0])
+                # print()
+                # exit()
+                # # print(preds["align"][])
                 loss = loss_class(preds, batch)
                 avg_loss = loss['loss']
+                
                 # avg_loss = preds["origin"]["ctc"].sum()
                 # loss["test"] = avg_loss
 
                 avg_loss.backward()
                 optimizer.step()
                 
-            
+                # print(model.head.decoder.k_decoder[3][1].weight[0][0])
+                
             optimizer.clear_grad()
             
             if cal_metric_during_train and epoch % calc_epoch_interval == 0:  # only rec and cls need (True)
@@ -460,8 +470,10 @@ def train(config,
                             post_result = post_process_class(preds, batch[1],
                                                             batch[-1])
                         else:
+                            # print("ABI GraphemeLabel Test")
                             post_result = post_process_class(preds, batch["label"])
                         eval_class(post_result, batch)
+                        
                     metric = eval_class.get_metric()
                     train_stats.update(metric)
         
@@ -477,10 +489,14 @@ def train(config,
             # logger and visualdl
             
             
-            for grapheme in config["Global"].get("handling_grapheme", []):
-                loss[f"{grapheme}_CTCLoss"] = loss[grapheme]["CTCLoss"]
-                loss[f"{grapheme}_SARLoss"] = loss[grapheme]["SARLoss"]
-                del loss[grapheme]
+            if config["Global"].get("grapheme_method", False) or config["Global"].get("grapheme_label_method", False):
+                for grapheme in config["Global"].get("handling_grapheme", []):
+                    for k, v in loss[grapheme].items():
+                        loss[f"{grapheme}_{k}"] = loss[grapheme][k]
+                    del loss[grapheme]
+            
+            # print(loss)
+            # exit()
             stats = {
                 k: float(v) if v.shape == [] else v.numpy().mean()
                 for k, v in loss.items()
@@ -725,6 +741,8 @@ def eval(model,
 
                 else:
                     post_result = post_process_class(preds, batch["label"])
+                    
+                
                 # print(f"post_result: {batch_numpy}")
             
                 eval_class(post_result, batch_numpy)

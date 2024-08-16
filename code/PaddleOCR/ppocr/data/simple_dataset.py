@@ -215,10 +215,11 @@ class SimpleDataSet(Dataset):
             data['ext_data'] = self.get_ext_data()
             outs = transform(data, self.ops)
         except:
-            # self.logger.error(
-            #     "When parsing line {}, error happened with msg: {}".format(
-            #         data_line, traceback.format_exc()))
-            outs = None
+            self.logger.error(
+                "When parsing line {}, error happened with msg: {}".format(
+                    data_line, traceback.format_exc()))
+            exit()
+            # outs = None
     
         if outs is None:
             # during evaluation, we should fix the idx to get same results for many times of evaluation.
@@ -378,11 +379,11 @@ class SimpleDataSet_Test(Dataset):
             label = substr[1]
             img_path = os.path.join(self.data_dir, file_name)
             cache_key = img_path
+            
             if self.cache:
                 data = self.dataset_cache.load_samples_from_hdf5(cache_key)
                 if data:
                     return data
-
             data = {'img_path': img_path, 'label': label}
             if not os.path.exists(img_path):
                 raise Exception("{} does not exist!".format(img_path))
@@ -427,6 +428,7 @@ class SimpleDataSet_Cache(SimpleDataSet):
             label = substr[1]
             img_path = os.path.join(self.data_dir, file_name)
             cache_key = img_path
+
             if self.cache:
                 data = self.dataset_cache.load_samples_from_hdf5(cache_key)
                 if data:

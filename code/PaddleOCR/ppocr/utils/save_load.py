@@ -119,7 +119,10 @@ def load_model(config, model, optimizer=None, model_type='det'):
         # print(2)
         # print(params.keys())
         # exit()
+        # print(model.head.cls.weight)
         model.set_state_dict(new_state_dict)
+        # print(model.head.cls.weight)
+        # exit()
         # print(model.head.head_dict)
         # exit()
         if is_float16:

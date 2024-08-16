@@ -101,12 +101,16 @@ class BaseRecLabelEncode(object):
                  max_text_length,
                  character_dict_path=None,
                  use_space_char=False,
+                 use_unkown = False,
                  lower=False):
 
         self.max_text_len = max_text_length
-        self.beg_str = "sos"
-        self.end_str = "eos"
+        self.beg_str = "<BOS>"
+        self.end_str = "<EOS>"
+        self.unkown_str = "<UNK>"
         self.lower = lower
+        
+        self.use_unkown = use_unkown
 
         if character_dict_path is None:
             logger = get_logger()
@@ -150,12 +154,18 @@ class BaseRecLabelEncode(object):
         if self.lower:
             text = text.lower()
         text_list = []
+
         for char in text:
             if char not in self.dict:
-                # logger = get_logger()
-                # logger.warning('{} is not in dict'.format(char))
-                continue
-            text_list.append(self.dict[char])
+                if self.use_unkown:
+                    text_list.append(self.dict[self.unkown_str])
+                else:
+                    # logger = get_logger()
+                    # logger.warning('{} is not in dict'.format(char))            
+                    continue
+            else:
+                text_list.append(self.dict[char])
+
         if len(text_list) == 0:
             return None
         return text_list
@@ -1494,30 +1504,92 @@ class ABINetLabelEncode(BaseRecLabelEncode):
                  character_dict_path=None,
                  use_space_char=False,
                  ignore_index=100,
+                 use_unkown = False,
                  **kwargs):
 
         super(ABINetLabelEncode, self).__init__(
-            max_text_length, character_dict_path, use_space_char)
+            max_text_length, character_dict_path, use_space_char, use_unkown = use_unkown)
         self.ignore_index = ignore_index
-
+    
     def __call__(self, data):
+
         text = data['label']
         text = self.encode(text)
         if text is None:
-            
             return None
         if len(text) >= self.max_text_len:
             return None
+        
         data['length'] = np.array(len(text))
+        
         text.append(0)
+        
         text = text + [self.ignore_index] * (self.max_text_len + 1 - len(text))
         data['label'] = np.array(text)
         return data
 
     def add_special_char(self, dict_character):
         dict_character = ['</s>'] + dict_character
+        if self.use_unkown:
+            dict_character = dict_character+[self.unkown_str]
         return dict_character
 
+class ABINetLabelEncode_GraphemeLabel(object):
+    """ Convert between text-label and text-index """
+
+    def __init__(self,
+                 max_text_length,
+                 character_dict_path=None,
+                 use_space_char=False,
+                 ignore_index=100,
+                 use_unkown = False,
+                 handling_grapheme = None,
+                 **kwargs):
+        
+        
+        self.encoder_dict ={}
+        self.handling_grapheme = handling_grapheme
+        
+
+        if "character" in handling_grapheme:
+            self.encoder_dict["character"] = ABINetLabelEncode(max_text_length=max_text_length, 
+                                                        character_dict_path=character_dict_path["character"], 
+                                                        use_space_char=use_space_char, 
+                                                        ignore_index=ignore_index, 
+                                                        use_unkown = use_unkown)
+        
+        if "initial" in handling_grapheme:
+            self.encoder_dict["initial"] = ABINetLabelEncode(max_text_length=max_text_length, 
+                                                    character_dict_path=character_dict_path["initial"], 
+                                                    use_space_char=use_space_char, 
+                                                    ignore_index=ignore_index, 
+                                                    use_unkown = use_unkown)
+        
+        if "medial" in handling_grapheme:
+            self.encoder_dict["medial"] = ABINetLabelEncode(max_text_length=max_text_length, 
+                                            character_dict_path=character_dict_path["medial"], 
+                                            use_space_char=use_space_char, 
+                                            ignore_index=ignore_index, 
+                                            use_unkown = True)
+        if "final" in handling_grapheme:
+            self.encoder_dict["final"] = ABINetLabelEncode(max_text_length=max_text_length, 
+                                    character_dict_path=character_dict_path["final"], 
+                                    use_space_char=use_space_char, 
+                                    ignore_index=ignore_index,
+                                    use_unkown = True)
+
+    def __call__(self, data):
+        
+        data_out = dict()
+        for name in self.handling_grapheme:
+            new_data = {"label":data["label"][name]}
+            x = self.encoder_dict[name](new_data)
+            if x == None:
+                return None
+            data_out[name] = x["label"]
+            
+        data["label"] = data_out
+        return data
 
 class SRLabelEncode(BaseRecLabelEncode):
     def __init__(self,

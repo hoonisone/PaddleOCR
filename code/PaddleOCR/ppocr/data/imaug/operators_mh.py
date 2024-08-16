@@ -147,16 +147,16 @@ from ppocr.utils.korean_compose import decompose_korean_char
 def extract_grapheme(text):
     decomposed_test = decompose_korean_char(text)
     return {
-        "first":[x[0] for x in decomposed_test],
-        "second":[x[1] for x in decomposed_test],
-        "third":[x[2] for x in decomposed_test],
-        "character":text
+        "character":text,
+        "initial":[x[0] for x in decomposed_test],
+        "medial":[x[1] for x in decomposed_test],
+        "final":[x[2] for x in decomposed_test]
     }
      
     return {
         "first":extract_first_grapheme(text),
-        "second":extract_second_grapheme(text),
-        "third":extract_third_grapheme(text),
+        "middle":extract_second_grapheme(text),
+        "last":extract_third_grapheme(text),
         "origin":text
     }
     
@@ -165,6 +165,7 @@ class ExtractGrapheme(object):
         pass
 
     def __call__(self, data):     
+        
         origin_data = data
         try:  
             data["origin_label"] = data["label"]

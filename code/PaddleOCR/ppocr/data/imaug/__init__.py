@@ -50,11 +50,14 @@ from .drrg_targets import DRRGTargets
 
 def transform(data, ops=None):
     """ transform """
+
     if ops is None:
         ops = []
+
     for op in ops:
-        data = op(data)
         
+        data = op(data)
+
         if data is None:
             return None
     return data

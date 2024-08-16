@@ -16,8 +16,11 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+import glob
 import os
 import sys
+
+from PaddleOCR.ppocr.postprocess.rec_postprocess import ABINetLabelDecode_GraphemeLabel
 
 __dir__ = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(__dir__)
@@ -38,7 +41,7 @@ from ppocr.metrics import build_metric
 from ppocr.utils.save_load import load_model
 from ppocr.utils.utility import set_seed
 from ppocr.modeling.architectures import apply_to_static
-import tools.program_v2 as program
+import tools.program_grapheme_label as program
 
 dist.get_world_size()
 
@@ -73,9 +76,13 @@ def main(config, device, logger, vdl_writer):
     # build post process
     post_process_class = build_post_process(config['PostProcess'],
                                             global_config)
-
+    
+    
     # build model
     # for rec algorithm
+    if config['PostProcess']["name"] == "ABINetLabelDecode_GraphemeLabel":
+        class_num_dict = post_process_class.class_num_dict
+        config["Global"]["class_num_dict"] = class_num_dict
     
     if hasattr(post_process_class, 'character'): # True
         character = getattr(post_process_class, 'character')
@@ -85,8 +92,10 @@ def main(config, device, logger, vdl_writer):
 
         else:
             char_num = len(character)
+        
 
         if config['Architecture']["algorithm"] in ["Distillation",]:  # distillation model
+        
             for key in config['Architecture']["Models"]:
                 if config['Architecture']['Models'][key]['Head'][
                         'name'] == 'MultiHead':  # for multi head
@@ -117,6 +126,7 @@ def main(config, device, logger, vdl_writer):
                         'out_channels'] = char_num
 
         elif config['Architecture']['Head']['name'] in ['MultiHead', 'MultiHead_Grapheme']:  # for multi head ############ Check
+        
             if config['PostProcess']['name'] == 'SARLabelDecode':
                 char_num = char_num - 2
             if config['PostProcess']['name'] == 'NRTRLabelDecode':
@@ -141,13 +151,12 @@ def main(config, device, logger, vdl_writer):
             config['Architecture']['Head'][
                 'out_channels_list'] = out_channels_list
         else:  # base rec model
+
             config['Architecture']["Head"]['out_channels'] = char_num
 
         if config['PostProcess']['name'] == 'SARLabelDecode':  # for SAR model
             config['Loss']['ignore_index'] = char_num - 1
-
     model = build_model(config['Architecture'], **global_config)
-    
     use_sync_bn = config["Global"].get("use_sync_bn", False)
     if use_sync_bn:
         model = paddle.nn.SyncBatchNorm.convert_sync_batchnorm(model)
@@ -203,12 +212,13 @@ def main(config, device, logger, vdl_writer):
         scaler = None
 
     # load pretrain model
-
+    
+    
     pre_best_model_dict = load_model(config, model, optimizer,
                                      config['Architecture']["model_type"])
     
-    # print(model)
-    # return
+    # print(model.head.cls.weight)
+    # exit()
 
     if config['Global']['distributed']:
         model = paddle.DataParallel(model)

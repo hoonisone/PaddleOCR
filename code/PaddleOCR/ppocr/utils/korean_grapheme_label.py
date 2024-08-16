@@ -22,24 +22,6 @@ def _decompose_korean_char(char):
 def decompose_korean_char(text):
     return [_decompose_korean_char(c) for c in text]
     
-def _compose_korean_char_grapheme_label(initial, medial, final):
-    initial_index = initial_list.index(initial) if (initial is not None) and (initial in initial_list) else None
-    medial_index = medial_list.index(medial) if (medial is not None) and (medial in medial_list) else None
-    final_index = final_list.index(final) if (final is not None) and (final in final_list) else None
-    
-    if initial_index is None: # 한글이 아니라면
-        return initial # 초성 그대로 반환
-    if medial_index is None: # 모음이 없다면
-        return initial # 초성 그대로 반환
-    
-    final_index = final_index if final_index is not None else 0
-    char_code = 44032 + (initial_index * 21 + medial_index) * 28 + final_index
-    return chr(char_code)
-
-def compose_korean_char_grapheme_label(initial, medial, final):
-    return [_compose_korean_char_grapheme_label(*c) for c in zip(initial, medial, final)]
-    
-    
 def _compose_korean_char(initial, medial, final=None, initial_p=None, medial_p=None, final_p=None):
     # try:
     initial_index = initial_list.index(initial) if (initial is not None) and (initial in initial_list) else None
@@ -60,12 +42,9 @@ def _compose_korean_char(initial, medial, final=None, initial_p=None, medial_p=N
         final_index = final_index if final_index is not None else 0
         
     char_code = 44032 + (initial_index * 21 + medial_index) * 28 + final_index
-    if None in [initial_p, medial_p, final_p]:
-        return [chr(char_code), None]
-    else:
-        return [chr(char_code), sum([initial_p, medial_p, final_p])/3]
+    return [chr(char_code), sum([initial_p, medial_p, final_p])/3]
 
-def compose_korean_char(f, s, th, fp=None, sp=None, thp=None, first_main=False):
+def compose_korean_char(f, s, th, fp, sp, thp, first_main=False):
     if first_main:
         for i, x in enumerate(f):
             if x not in initial_list:
@@ -73,10 +52,8 @@ def compose_korean_char(f, s, th, fp=None, sp=None, thp=None, first_main=False):
                 th = th[:i]+" "+th[i:]
                 sp.insert(i, 0)
                 thp.insert(i, 0)
-    if None in [fp, sp, thp]:
-        composed = [_compose_korean_char(*c) for c in zip(f, s, th)]
-    else:
-        composed = [_compose_korean_char(*c) for c in zip(f, s, th, fp, sp, thp)]
+                
+    composed = [_compose_korean_char(*c) for c in zip(f, s, th, fp, sp, thp)]
     char = "".join([x[0] for x in composed])
     conf = [x[1] for x in composed]
     return [char, conf]

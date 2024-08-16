@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from importlib import abc
+from matplotlib import use
 import numpy as np
 import paddle
 from paddle.nn import functional as F
@@ -21,11 +23,13 @@ import re
 class BaseRecLabelDecode(object):
     """ Convert between text-label and text-index """
 
-    def __init__(self, character_dict_path=None, use_space_char=False):
-        self.beg_str = "sos"
-        self.end_str = "eos"
+    def __init__(self, character_dict_path=None, use_space_char=False, use_unkown=False):
+        self.beg_str = "<BOS>"
+        self.end_str = "<EOS>"
+        self.unkown_str = "<UNK>"
         self.reverse = False
         self.character_str = []
+        self.use_unkown = use_unkown
 
         if character_dict_path is None:
             self.character_str = "0123456789abcdefghijklmnopqrstuvwxyz"
@@ -807,9 +811,9 @@ class PRENLabelDecode(BaseRecLabelDecode):
 class NRTRLabelDecode(BaseRecLabelDecode):
     """ Convert between text-label and text-index """
 
-    def __init__(self, character_dict_path=None, use_space_char=True, **kwargs):
+    def __init__(self, character_dict_path=None, use_space_char=True, use_unkown=False, **kwargs):
         super(NRTRLabelDecode, self).__init__(character_dict_path,
-                                              use_space_char)
+                                              use_space_char, use_unkown = use_unkown)
 
     def __call__(self, preds, label=None, *args, **kwargs):
 
@@ -897,12 +901,13 @@ class ViTSTRLabelDecode(NRTRLabelDecode):
 class ABINetLabelDecode(NRTRLabelDecode):
     """ Convert between text-label and text-index """
 
-    def __init__(self, character_dict_path=None, use_space_char=False,
+    def __init__(self, character_dict_path=None, use_space_char=False, use_unkown=False,
                  **kwargs):
         super(ABINetLabelDecode, self).__init__(character_dict_path,
-                                                use_space_char)
+                                                use_space_char, use_unkown=use_unkown)
 
     def __call__(self, preds, label=None, *args, **kwargs):
+        
         if isinstance(preds, dict):
             preds = preds['align'][-1].numpy()
         elif isinstance(preds, paddle.Tensor):
@@ -920,8 +925,94 @@ class ABINetLabelDecode(NRTRLabelDecode):
 
     def add_special_char(self, dict_character):
         dict_character = ['</s>'] + dict_character
+        if self.use_unkown:
+            dict_character = dict_character+[self.unkown_str]
         return dict_character
 
+class ABINetLabelDecode_GraphemeLabel(object):
+    """ Convert between text-label and text-index """
+    from ppocr.utils.korean_compose import initial_list, _compose_korean_char_grapheme_label, compose_korean_char_grapheme_label
+    
+    def __init__(self, character_dict_path=None, use_space_char=False, use_unkown=False, handling_grapheme = None,
+                 **kwargs):
+        
+        if handling_grapheme == None:
+            raise ValueError("handling_grpaheme must not be None")
+        
+        self.decode_dict = dict()
+        if "character" in handling_grapheme:
+            self.decode_dict["character"] = ABINetLabelDecode(character_dict_path=character_dict_path["character"], use_space_char=use_space_char, use_unkown=use_unkown)
+        if "initial" in handling_grapheme:
+            self.decode_dict["initial"] = ABINetLabelDecode(character_dict_path=character_dict_path["initial"], use_space_char=use_space_char, use_unkown=use_unkown)
+        if "medial" in handling_grapheme:
+            self.decode_dict["medial"] = ABINetLabelDecode(character_dict_path=character_dict_path["medial"], use_space_char=use_space_char, use_unkown=True)
+        if "final" in handling_grapheme:
+            
+            self.decode_dict["final"] = ABINetLabelDecode(character_dict_path=character_dict_path["final"], use_space_char=use_space_char, use_unkown=True)
+        self.class_num_dict = {name: len(decode.character) for name, decode in self.decode_dict.items()}
+        
+        self.character = sum([decoder.character for decoder in self.decode_dict.values()], [])
+        return
+    
+    
+    def split_grapheme_logits(self, x):
+        self.class_num_dict
+        
+        index_ranges = {}
+        start_index = 0
+        for key, length in self.class_num_dict.items():
+            index_ranges[key] = (start_index, start_index + length)
+            start_index += length
+    
+        dict_out = {key : x[:, :, start:end] for key, (start, end) in index_ranges.items()}
+        return dict_out
+    
+    def compose(self, decode_dict):
+        
+        initials = decode_dict["initial"]
+        medials = decode_dict["medial"]
+        finals = decode_dict["final"]
+        
+        
+        labels = []
+        gt_lables = []
+        for initial, gt_initial, medial, gt_medial, final, gt_final in zip(*initials, *medials, *finals):
+            gt_label = ABINetLabelDecode_GraphemeLabel.compose_korean_char_grapheme_label(gt_initial[0], gt_medial[0], gt_final[0])
+            gt_label = "".join(gt_label)
+            gt_lables.append((gt_label, 0))
+            label = ""
+            for i, m, f in zip(initial[0], medial[0], final[0]):
+                if i in self.initial_list:
+                    c = ABINetLabelDecode_GraphemeLabel._compose_korean_char_grapheme_label(i, m, f)
+                    label += c
+                else:
+                    label += i
+            labels.append((label, 0))
+        return labels, gt_lables
+    
+    def __call__(self, preds, label=None, *args, **kwargs):
+        # 기존 클래스(ABINetLabelDecode)에 grapheme 단위로 적용할 수 있도록 형태 변환
+        if isinstance(preds, dict):
+            if "align" in preds:
+                preds = preds['align'][-1]
+            else:
+                preds = preds["vision"]
+        elif isinstance(preds, paddle.Tensor):
+            preds = preds
+        
+
+            # raise Exception("미구현, 평가용 부분일 듯")
+        logit_dict = self.split_grapheme_logits(preds)
+        pred_dict = {key: {"align":[logit_dict[key]]} for key in self.decode_dict.keys()}
+        label_dict = {key: label[key] if label else None for key in self.decode_dict.keys()}
+        
+        # 각 grpaheme 별로 기존 클래스 적용
+        decode_dict = {key: self.decode_dict[key](pred_dict[key], label=label_dict[key], *args, **kwargs) for key in self.decode_dict.keys()}
+            
+        if all([name in self.decode_dict.keys() for name in ["initial", "medial", "final"]]):
+            decode_dict["composed"] = self.compose(decode_dict)
+        
+        return decode_dict
 
 class SPINLabelDecode(AttnLabelDecode):
     """ Convert between text-label and text-index """
