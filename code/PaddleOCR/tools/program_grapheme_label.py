@@ -701,6 +701,7 @@ def eval(model,
                     lr_img = preds["lr_img"]
                 else:
                     preds = model(images)
+            
             # batch_numpy = []
             # for item in batch:
             #     if isinstance(item, paddle.Tensor):
@@ -737,6 +738,7 @@ def eval(model,
                     preds_args = {name: preds.get(name, None) for name in config["Global"]["grapheme"]}
                     labels_args = {f"{name}_label": batch[f"{name}_label"]["label_ctc"] for name in config["Global"]["grapheme"]}
                     
+
                     post_result = post_process_class(preds_args, labels_args)
 
                 else:
@@ -829,8 +831,10 @@ def preprocess(is_train=False):
         log_file = '{}/train.log'.format(save_model_dir)
     else:
         log_file = None
-
+    
     logger = get_logger(log_file=log_file)
+
+
 
     # check if set use_gpu=True in paddlepaddle cpu version
     use_gpu = config['Global'].get('use_gpu', False)

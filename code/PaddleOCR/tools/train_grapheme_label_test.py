@@ -11,16 +11,16 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
+
 
 import glob
 import os
 import sys
 
-from PaddleOCR.ppocr.postprocess.rec_postprocess import ABINetLabelDecode_GraphemeLabel
+
 
 __dir__ = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(__dir__)
@@ -30,7 +30,6 @@ import yaml
 import paddle
 import paddle.distributed as dist
 import numpy as np
-
 
 from ppocr.data import build_dataloader, set_signal_handlers
 from ppocr.modeling.architectures import build_model
@@ -43,10 +42,9 @@ from ppocr.utils.utility import set_seed
 from ppocr.modeling.architectures import apply_to_static
 import tools.program_grapheme_label as program
 
+
 dist.get_world_size()
-
 def main(config, device, logger, vdl_writer):
-
     # init dist environment
     if config['Global']['distributed']:
         dist.init_parallel_env()

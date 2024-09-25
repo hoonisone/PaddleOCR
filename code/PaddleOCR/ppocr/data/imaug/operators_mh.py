@@ -159,17 +159,18 @@ def extract_grapheme(text):
         "last":extract_third_grapheme(text),
         "origin":text
     }
-    
+import copy
+
 class ExtractGrapheme(object):
     def __init__(self, **kwargs):
         pass
 
     def __call__(self, data):     
-        
-        origin_data = data
         try:  
+            origin_data = data
             data["origin_label"] = data["label"]
             data["label"] = extract_grapheme(data["label"])
             return data
         except:
+            
             return origin_data

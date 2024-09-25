@@ -42,6 +42,7 @@ def get_logger(name='ppocr', log_file=None, log_level=logging.DEBUG):
     Returns:
         logging.Logger: The expected logger.
     """
+    
     logger = logging.getLogger(name)
     if name in logger_initialized:
         return logger
@@ -68,4 +69,7 @@ def get_logger(name='ppocr', log_file=None, log_level=logging.DEBUG):
         logger.setLevel(logging.ERROR)
     logger_initialized[name] = True
     logger.propagate = False
+    
+    logger.info("logger is initialized")
+    
     return logger

@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+
 import os
 import sys
 import subprocess
@@ -35,8 +36,7 @@ from tools.infer.predict_system import TextSystem
 from ppstructure.layout.predict_layout import LayoutPredictor
 from ppstructure.table.predict_table import TableSystem, to_excel
 from ppstructure.utility import parse_args, draw_structure_result
-
-logger = get_logger()
+# logger = get_logger()
 
 
 class StructureSystem(object):

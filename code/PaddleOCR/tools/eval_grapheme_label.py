@@ -63,7 +63,7 @@ def main():
     
     # build model
     # for rec algorithm
-    if config['PostProcess']["name"] == "ABINetLabelDecode_GraphemeLabel":
+    if config['PostProcess']["name"] in ["ABINetLabelDecode_GraphemeLabel", "ABINetLabelDecode_GraphemeLabel_B", "ABINetLabelDecode_GraphemeLabel_All"]:
         class_num_dict = post_process_class.class_num_dict
         config["Global"]["class_num_dict"] = class_num_dict
         

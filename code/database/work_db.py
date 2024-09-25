@@ -45,7 +45,7 @@ class WorkDB(DB):
         df = pd.DataFrame()
         for id in ides:
             config = self.get_config(id)
-            new_df = pd.DataFrame([{"id": id, "labelsets": config["labelsets"], "model": config["model"], "trained_epoch": self.get_trained_epoch(id)}])
+            new_df = pd.DataFrame([{"id": id, "labelsets": config["labelsets"], "model": config["model"], "trained_epoch": self.get_max_epoch(id)}])
             df = pd.concat([df, new_df])
             
         return df
@@ -183,7 +183,7 @@ class WorkDB(DB):
         else:
             return df.iloc[0]
     
-    def get_trained_epoch(self, id):
+    def get_max_epoch(self, id):
         def get_max(extension:str):
             files = list(Path(self.get_config(id, relative_to="absolute")["trained_model_dir"]).glob(f"iter_epoch_*.{extension}"))
             if len(files) == 0:
@@ -259,7 +259,7 @@ class WorkDB(DB):
     
     
     
-    def eval(self, id, version, task, relative_to="project", command_to="global", report_to="local", check_exist=True, labelsets=None, data_dir=None, save = True):
+    def eval(self, id, version, task, relative_to="project", command_to="global", report_to="local", check_exist=True, check_weight=True, labelsets=None, data_dir=None, save = True):
         item = self.get_report_value(id, version=version, task=task)
         
         if check_exist:
@@ -268,8 +268,9 @@ class WorkDB(DB):
                 print(f"(id:{id}, version:{version}, task:{task}) already evaluated")
                 return 
             
+        if check_weight:
             # weight이 없으면 취소
-            elif not self.check_weight_exist(id, version):
+            if not self.check_weight_exist(id, version):
                 print(f"(id:{id}, version:{version}, task:{task}) has no weight")
                 return
                 
@@ -342,7 +343,7 @@ class WorkDB(DB):
         
         pass_flag = False
         if epoch_check:
-            trained_epoch = self.get_trained_epoch(id)
+            trained_epoch = self.get_max_epoch(id)
             if epoch <= trained_epoch:
                 pass_flag = True
 

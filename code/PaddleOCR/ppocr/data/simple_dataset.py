@@ -214,6 +214,7 @@ class SimpleDataSet(Dataset):
                 data['image'] = img
             data['ext_data'] = self.get_ext_data()
             outs = transform(data, self.ops)
+            
         except:
             self.logger.error(
                 "When parsing line {}, error happened with msg: {}".format(
