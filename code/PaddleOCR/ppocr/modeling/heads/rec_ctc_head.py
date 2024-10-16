@@ -67,6 +67,7 @@ class FirstCTCHead(nn.Layer):
                 out_channels,
                 weight_attr=weight_attr2,
                 bias_attr=bias_attr2)
+            
         self.out_channels = out_channels
         self.mid_channels = mid_channels
         self.return_feats = return_feats
@@ -146,3 +147,51 @@ class CTCHead(nn.Layer):
             result = predicts
 
         return result
+
+class CTCHead_Grapheme(nn.Layer):
+    def __init__(self,
+                 in_channels,
+                 out_channels,
+                 fc_decay=0.0004,
+                 mid_channels=None,
+                 handling_grapheme=None,
+                 return_feats=False,
+                 **kwargs):
+        super(CTCHead_Grapheme, self).__init__()
+        
+        assert handling_grapheme is not None
+        self.handling_grapheme = handling_grapheme
+        
+        assert mid_channels is None, "Not implemented" # if need, just implement
+        assert return_feats is False, "Not implemented"
+        
+        weight_attr, bias_attr = get_para_bias_attr(l2_decay=fc_decay, k=in_channels) # grapheme 마다 따로 만들 필요 없겠지?  GPT가 그렇데
+        
+        self.out_channels = out_channels
+        self.mid_channels = mid_channels
+        self.return_feats = return_feats
+        self.fc_dict = {}
+        
+        for g in self.handling_grapheme:
+            fc = nn.Linear(
+                in_channels,
+                out_channels[g],
+                weight_attr=weight_attr,
+                bias_attr=bias_attr)
+            self.__setattr__(f"{g}_fc", fc)
+            self.fc_dict[g] = fc
+
+    def forward(self, x, targets=None):
+        predicts = {
+            "vision": {g: self.fc_dict[g](x) for g in self.handling_grapheme}
+        }
+
+        
+        if self.return_feats:    # False
+            # print("@2")
+            result = (x, predicts)
+        else:
+            result = predicts
+        
+        return result
+        

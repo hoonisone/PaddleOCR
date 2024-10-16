@@ -130,14 +130,19 @@ class Fasttext(object):
 
 
 class KeepKeys(object):
-    def __init__(self, keep_keys, **kwargs):
+    def __init__(self, keep_keys, data_type="list", **kwargs):
+        
+        assert data_type in ["list", "dict"]
+        self.data_type = data_type
         self.keep_keys = keep_keys
 
     def __call__(self, data):
-        data_list = []
-        for key in self.keep_keys:
-            data_list.append(data[key])
-        return data_list
+        if self.data_type == "list":
+            return [data[key] for key in self.keep_keys]
+        elif self.data_type == "dict":
+            return {key: data[key] for key in self.keep_keys}
+        else:
+            raise Exception("Error")
 
 
 class Pad(object):

@@ -28,7 +28,7 @@ from .fce_postprocess import FCEPostProcess
 from .rec_postprocess import CTCLabelDecode, AttnLabelDecode, SRNLabelDecode, \
     DistillationCTCLabelDecode, NRTRLabelDecode, SARLabelDecode, \
     SEEDLabelDecode, PRENLabelDecode, ViTSTRLabelDecode, ABINetLabelDecode, ABINetLabelDecode_GraphemeLabel, ABINetLabelDecode_GraphemeLabel_All,\
-    SPINLabelDecode, VLLabelDecode, RFLLabelDecode, SATRNLabelDecode, CTCLabelDecode_Grapheme
+    SPINLabelDecode, VLLabelDecode, RFLLabelDecode, SATRNLabelDecode, CTCLabelDecode_Grapheme, CTCLabelDecode_TEST, CTCLabelDecode_GraphemeLabel
 from .cls_postprocess import ClsPostProcess
 from .pg_postprocess import PGPostProcess
 from .vqa_token_ser_layoutlm_postprocess import VQASerTokenLayoutLMPostProcess, DistillationSerPostProcess
@@ -53,7 +53,8 @@ def build_post_process(config, global_config=None):
         'DistillationSerPostProcess', 'DistillationRePostProcess',
         'VLLabelDecode', 'PicoDetPostProcess', 'CTPostProcess',
         'RFLLabelDecode', 'DRRGPostprocess', 'CANLabelDecode',
-        'SATRNLabelDecode', "CTCLabelDecode_Grapheme", "ABINetLabelDecode_GraphemeLabel", "ABINetLabelDecode_GraphemeLabel_B", "ABINetLabelDecode_GraphemeLabel_All"
+        'SATRNLabelDecode', "CTCLabelDecode_Grapheme", "ABINetLabelDecode_GraphemeLabel", "ABINetLabelDecode_GraphemeLabel_B", 
+        "ABINetLabelDecode_GraphemeLabel_All", "CTCLabelDecode_TEST", "CTCLabelDecode_GraphemeLabel"
     ]
     # pre, post processing의 경우 설정에 민감하게 바뀐다.
     # 알고리즘이 다른 경우 입력 출력 형태가 다를 수 있어 pre, post에서 이를 맞춰주어야 한다.

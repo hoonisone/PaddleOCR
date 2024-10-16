@@ -20,10 +20,10 @@ from __future__ import unicode_literals
 import os
 import sys
 import numpy as np
-import skimage
-import paddle
+# import skimage
+# import paddle
 import signal
-import random
+# import random
 
 __dir__ = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.abspath(os.path.join(__dir__, '../..')))
@@ -38,6 +38,7 @@ from ppocr.data.lmdb_dataset import LMDBDataSet, LMDBDataSetSR, LMDBDataSetTable
 from ppocr.data.pgnet_dataset import PGDataSet
 from ppocr.data.pubtab_dataset import PubTabDataSet
 from ppocr.data.multi_scale_sampler import MultiScaleSampler
+from ppocr.data.h5_dataset import H5Dataset
 
 # for PaddleX dataset_type
 TextDetDataset = SimpleDataSet
@@ -99,7 +100,8 @@ def build_dataloader(config, mode, device, logger, seed=None):
         'KieDataset',
         "SimpleDataSet_Grapheme",
         "SimpleDataSet_Cache",
-        "SimpleDataSet_Test"
+        "SimpleDataSet_Test",
+        "H5Dataset"
     ]
 
     module_name = config[mode]['dataset']['name']

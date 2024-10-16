@@ -16,8 +16,11 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+import glob
 import os
 import sys
+
+
 
 __dir__ = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(__dir__)
@@ -27,6 +30,8 @@ import yaml
 import paddle
 import paddle.distributed as dist
 import numpy as np
+
+
 
 
 from ppocr.data import build_dataloader, set_signal_handlers
@@ -39,6 +44,7 @@ from ppocr.utils.save_load import load_model
 from ppocr.utils.utility import set_seed
 from ppocr.modeling.architectures import apply_to_static
 import tools.program as program
+
 
 dist.get_world_size()
 
@@ -71,84 +77,115 @@ def main(config, device, logger, vdl_writer):
     else:
         valid_dataloader = None
 
-    # build post process
+
+    # # build post process
+
+
     post_process_class = build_post_process(config['PostProcess'],
                                             global_config)
-
-    # build model
-    # for rec algorithm
     
-    if hasattr(post_process_class, 'character'): # True
-        character = getattr(post_process_class, 'character')
-        if "use_grapheme" in global_config and global_config["use_grapheme"]:    
-            char_num= np.array([len(character[grapheme]) for grapheme in global_config["handling_grapheme"]])
-            # char_num = np.array([len(x) for x in character])
 
-        else:
-            char_num = len(character)
 
-        if config['Architecture']["algorithm"] in ["Distillation",]:  # distillation model
-            for key in config['Architecture']["Models"]:
-                if config['Architecture']['Models'][key]['Head'][
-                        'name'] == 'MultiHead':  # for multi head
-                    if config['PostProcess'][
-                            'name'] == 'DistillationSARLabelDecode':
-                        char_num = char_num - 2
-                    if config['PostProcess'][
-                            'name'] == 'DistillationNRTRLabelDecode':
-                        char_num = char_num - 3
-                    out_channels_list = {}
-                    out_channels_list['CTCLabelDecode'] = char_num
-                    out_channels_list['CTCLabelDecode_Grapheme'] = char_num
-                    # update SARLoss params
-                    if list(config['Loss']['loss_config_list'][-1].keys())[
-                            0] == 'DistillationSARLoss':
-                        config['Loss']['loss_config_list'][-1][
-                            'DistillationSARLoss'][
-                                'ignore_index'] = char_num + 1
-                        out_channels_list['SARLabelDecode'] = char_num + 2
-                    elif list(config['Loss']['loss_config_list'][-1].keys())[
-                            0] == 'DistillationNRTRLoss':
-                        out_channels_list['NRTRLabelDecode'] = char_num + 3
+    config["Global"]["char_num"] = post_process_class.char_num # 기본적으로 int 값이나 Grapheme 알고리즘에서는 dict이다. {grapheme: num}
+    config["Architecture"]["Head"]["out_channels"] = post_process_class.char_num
+    
+    # print(config["Global"]["char_num"])
+    # print(post_process_class.character)
+    # exit()
+    
+    # # build model
+    # # for rec algorithm
+    # algorithm = config['Architecture']['algorithm']
+    
+    #                     'name']
+    
+    # if config['PostProcess']["name"] in ["ABINetLabelDecode_GraphemeLabel", "ABINetLabelDecode_GraphemeLabel_B", "ABINetLabelDecode_GraphemeLabel_All"]:
+    #     class_num_dict = post_process_class.class_num_dict
+    #     config["Global"]["class_num_dict"] = class_num_dict
+    
+    # if hasattr(post_process_class, 'character'): # True
+    #     character = getattr(post_process_class, 'character')
+    #     if "use_grapheme" in global_config and global_config["use_grapheme"]:    
+    #         char_num= np.array([len(character[grapheme]) for grapheme in global_config["handling_grapheme"]])
+    #         # char_num = np.array([len(x) for x in character])
 
-                    config['Architecture']['Models'][key]['Head'][
-                        'out_channels_list'] = out_channels_list
-                else:
-                    config['Architecture']["Models"][key]["Head"][
-                        'out_channels'] = char_num
+    #     else:
+    #         char_num = len(character)
+        
 
-        elif config['Architecture']['Head']['name'] in ['MultiHead', 'MultiHead_Grapheme']:  # for multi head ############ Check
-            if config['PostProcess']['name'] == 'SARLabelDecode':
-                char_num = char_num - 2
-            if config['PostProcess']['name'] == 'NRTRLabelDecode':
-                char_num = char_num - 3
-            out_channels_list = {}
-            out_channels_list['CTCLabelDecode'] = char_num
-            out_channels_list['CTCLabelDecode_Grapheme'] = char_num
-            # update SARLoss params
-            if list(config['Loss']['loss_config_list'][1].keys())[
-                    0] == 'SARLoss':
-                if config['Loss']['loss_config_list'][1]['SARLoss'] is None:
-                    config['Loss']['loss_config_list'][1]['SARLoss'] = {
-                        'ignore_index': char_num + 1
-                    }
-                else:
-                    config['Loss']['loss_config_list'][1]['SARLoss'][
-                        'ignore_index'] = char_num + 1
-                out_channels_list['SARLabelDecode'] = char_num + 2
-            elif list(config['Loss']['loss_config_list'][1].keys())[
-                    0] == 'NRTRLoss':
-                out_channels_list['NRTRLabelDecode'] = char_num + 3
-            config['Architecture']['Head'][
-                'out_channels_list'] = out_channels_list
-        else:  # base rec model
-            config['Architecture']["Head"]['out_channels'] = char_num
+    #     if config['Architecture']["algorithm"] in ["Distillation",]:  # distillation model
+        
+    #         for key in config['Architecture']["Models"]:
+    #             if config['Architecture']['Models'][key]['Head'][
+    #                     'name'] == 'MultiHead':  # for multi head
+    #                 if config['PostProcess'][
+    #                         'name'] == 'DistillationSARLabelDecode':
+    #                     char_num = char_num - 2
+    #                 if config['PostProcess'][
+    #                         'name'] == 'DistillationNRTRLabelDecode':
+    #                     char_num = char_num - 3
+    #                 out_channels_list = {}
+    #                 out_channels_list['CTCLabelDecode'] = char_num
+    #                 out_channels_list['CTCLabelDecode_Grapheme'] = char_num
+    #                 # update SARLoss params
+    #                 if list(config['Loss']['loss_config_list'][-1].keys())[
+    #                         0] == 'DistillationSARLoss':
+    #                     config['Loss']['loss_config_list'][-1][
+    #                         'DistillationSARLoss'][
+    #                             'ignore_index'] = char_num + 1
+    #                     out_channels_list['SARLabelDecode'] = char_num + 2
+    #                 elif list(config['Loss']['loss_config_list'][-1].keys())[
+    #                         0] == 'DistillationNRTRLoss':
+    #                     out_channels_list['NRTRLabelDecode'] = char_num + 3
 
-        if config['PostProcess']['name'] == 'SARLabelDecode':  # for SAR model
-            config['Loss']['ignore_index'] = char_num - 1
+    #                 config['Architecture']['Models'][key]['Head'][
+    #                     'out_channels_list'] = out_channels_list
+    #             else:
+    #                 config['Architecture']["Models"][key]["Head"][
+    #                     'out_channels'] = char_num
 
+    #     elif config['Architecture']['Head']['name'] in ['MultiHead', 'MultiHead_Grapheme']:  # for multi head ############ Check
+        
+    #         if config['PostProcess']['name'] == 'SARLabelDecode':
+    #             char_num = char_num - 2
+    #         if config['PostProcess']['name'] == 'NRTRLabelDecode':
+    #             char_num = char_num - 3
+    #         out_channels_list = {}
+    #         out_channels_list['CTCLabelDecode'] = char_num
+    #         out_channels_list['CTCLabelDecode_Grapheme'] = char_num
+    #         # update SARLoss params
+    #         if list(config['Loss']['loss_config_list'][1].keys())[
+    #                 0] == 'SARLoss':
+    #             if config['Loss']['loss_config_list'][1]['SARLoss'] is None:
+    #                 config['Loss']['loss_config_list'][1]['SARLoss'] = {
+    #                     'ignore_index': char_num + 1
+    #                 }
+    #             else:
+    #                 config['Loss']['loss_config_list'][1]['SARLoss'][
+    #                     'ignore_index'] = char_num + 1
+    #             out_channels_list['SARLabelDecode'] = char_num + 2
+    #         elif list(config['Loss']['loss_config_list'][1].keys())[
+    #                 0] == 'NRTRLoss':
+    #             out_channels_list['NRTRLabelDecode'] = char_num + 3
+    #         config['Architecture']['Head'][
+    #             'out_channels_list'] = out_channels_list
+    #     else:  # base rec model
+
+    #         config['Architecture']["Head"]['out_channels'] = char_num
+
+    #     if config['PostProcess']['name'] == 'SARLabelDecode':  # for SAR model
+    #         config['Loss']['ignore_index'] = char_num - 1
+    
+    
+    # print("POost@@@@@@@@@")
+    # for k, v in config['Architecture'].items():
+    #     print(k, v)
+    # print("global@@@@@@@@@")
+    # for k, v in global_config.items():
+    #     print(k, v)
+    # exit()
+            
     model = build_model(config['Architecture'], **global_config)
-    
     use_sync_bn = config["Global"].get("use_sync_bn", False)
     if use_sync_bn:
         model = paddle.nn.SyncBatchNorm.convert_sync_batchnorm(model)
@@ -204,17 +241,19 @@ def main(config, device, logger, vdl_writer):
         scaler = None
 
     # load pretrain model
-
+    
+    
     pre_best_model_dict = load_model(config, model, optimizer,
                                      config['Architecture']["model_type"])
     
-    # print(model)
-    # return
+    # print(model.head.cls.weight)
+    # exit()
 
     if config['Global']['distributed']:
         model = paddle.DataParallel(model)
     # start train
-    
+    # print(model.backbone.conv1.weight[0])
+    # exit()
     program.train(config, train_dataloader, valid_dataloader, device, model,
                   loss_class, optimizer, lr_scheduler, post_process_class,
                   eval_class, pre_best_model_dict, logger, vdl_writer, scaler,
@@ -241,14 +280,7 @@ def test_reader(config, device, logger):
 
 
 if __name__ == '__main__':
-    print("시작")
     config, device, logger, vdl_writer = program.preprocess(is_train=True)
-    # print(config)
-    # print(device)
-    # print(type(device))
-    # print(logger)
-    # print(vdl_writer)
-    # exit(-1)
     seed = config['Global']['seed'] if 'seed' in config['Global'] else 1024
     set_seed(seed)
     main(config, device, logger, vdl_writer)

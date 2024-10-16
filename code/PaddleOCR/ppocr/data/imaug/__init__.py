@@ -27,7 +27,7 @@ from .make_pse_gt import MakePseGt
 from .rec_img_aug import BaseDataAugmentation, RecAug, RecConAug, RecResizeImg, ClsResizeImg, \
     SRNRecResizeImg, GrayRecResizeImg, SARRecResizeImg, PRENResizeImg, \
     ABINetRecResizeImg, SVTRRecResizeImg, ABINetRecAug, VLRecResizeImg, SPINRecResizeImg, RobustScannerRecResizeImg, \
-    RFLRecResizeImg, SVTRRecAug
+    RFLRecResizeImg, SVTRRecAug, RecConAug_GraphemeLabel
 from .ssl_img_aug import SSLRotateResize
 from .randaugment import RandAugment
 from .copy_paste import CopyPaste
@@ -48,28 +48,39 @@ from .fce_targets import FCENetTargets
 from .ct_process import *
 from .drrg_targets import DRRGTargets
 
+from collections import OrderedDict
+
 def transform(data, ops=None):
     """ transform """
-
     if ops is None:
         ops = []
 
-    for op in ops:
+    # print(111)
+    for name, op in ops.items():
+        # print(data.keys())
+        # print(op)
         data = op(data)
+        # print(data.keys())
         if data is None:
             return None
+    # print(222)
     return data
 
 
 def create_operators(op_param_list, global_config=None):
+    # print(type(op_param_list))
+    ops = OrderedDict()
+    if op_param_list is None:
+        return ops
     """
     create operators based on the config
 
     Args:
         params(list): a dict list, used to create some operators
     """
+
     assert isinstance(op_param_list, list), ('operator config should be a list')
-    ops = []
+    
     for operator in op_param_list:
         assert isinstance(operator,
                           dict) and len(operator) == 1, "yaml format error"
@@ -80,5 +91,5 @@ def create_operators(op_param_list, global_config=None):
             param.update(global_config)
 
         op = eval(op_name)(**param)
-        ops.append(op)
+        ops[op_name] = op
     return ops

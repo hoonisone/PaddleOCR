@@ -1,4 +1,5 @@
 from pathlib import Path
+from matplotlib.dates import get_epoch
 import yaml
 
 
@@ -12,6 +13,8 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import shutil
 import itertools
+import fcntl
+
 
 def smooth(x, window):
     new = []
@@ -29,14 +32,14 @@ class WorkDB(DB):
     DIR = "./works"
     CONFIG_NAME = "work_config.yml"
     
-    def __init__(self):
-        super().__init__(self.DIR, self.CONFIG_NAME)
+    def __init__(self, dir = DIR, config_name = CONFIG_NAME):
+        super().__init__(dir, config_name)
         
     def get_config(self, id, relative_to=None):
         config = super().get_config(id)
         
         if relative_to:
-            for k in ["inference_result_dir", "trained_model_dir", "train_config", "report_file", "export_dir"]:
+            for k in ["inference_result_dir", "trained_model_dir", "train_config", "report_file", "export_dir", "train_cache_file", "eval_cache_file"]:
                 config[k] = self.relative_to(id, config[k], relative_to=relative_to)    
         return config    
     
@@ -116,7 +119,14 @@ class WorkDB(DB):
         save_path = self.save_relative_to(id, "export.sh", relative_to=relative_to, save_to=command_to)
         with open(save_path, "a") as f:
             f.write(command+"\n")
-            
+       
+    def update(self, work): # work에 수정이 일어난 경우 일관성을 위해 정리해주는 함수
+        
+        # 1. report 업데이트
+        report_df = self.get_report_df(work)
+        report_df["work_id"] = work
+        self.save_report_df(work, report_df)   
+        
     def get_report_df(self, id):
         config = self.get_config(id, relative_to="absolute")
         config["report_file"]
@@ -127,9 +137,13 @@ class WorkDB(DB):
             return pd.DataFrame({"work_id":[], "version":[], "task":[]})
     
     def save_report_df(self, id, df):
+        
+        
         config = self.get_config(id, relative_to="absolute")
         report_path = self.save_relative_to(id, config["report_file"], "absolute", "local")
+
         df.to_csv(report_path)
+
     
     def modify_train_config(self, id, key, value):
         
@@ -166,14 +180,41 @@ class WorkDB(DB):
     
     def report_eval(self, id, report):
         # 기존 데이터 로드
-        df = self.get_report_df(id)
         
-        # 데이터 추가
-        new_df = pd.DataFrame([report])
-        df = pd.concat([df, new_df])
+        with open("/home/works/log.txt", "a") as f:
+            with open("/home/works/eval_lack", 'w') as lock_file:
+                fcntl.flock(lock_file, fcntl.LOCK_EX) 
+                try:
+                    df = self.get_report_df(id)
+                    f.write(f"{id}, {report['version']}, {len(df)}\n")
+                    new_df = pd.DataFrame([report])
+                    new_df = pd.concat([df, new_df])
+                    self.save_report_df(id, new_df)
+                finally:
+                    fcntl.flock(lock_file, fcntl.LOCK_UN)
+                    
         
-        # 저장
-        self.save_report_df(id, df)
+        
+        
+        
+        
+        # pre_len = len(df)
+        
+        # # 데이터 추가
+
+    
+        # # 저장
+        
+        # new_df = self.get_report_df(id)
+        # with open("/home/works/log.txt", "a") as f:
+        #     f.write(f"{pre_len}, {len(new_df)}\n")
+        #     if pre_len +1 != len(new_df):
+            
+        #         f.write(f"경고!! {report}\n")
+        #         self.save_report_df(id, df)
+        
+    def get_work_dir_path(self, id):
+        return Path(self.PROJECT_ROOT)/self.dir/id
 
     def get_report_value(self, id, version, task):
         df = self.get_report_df(id)
@@ -244,7 +285,7 @@ class WorkDB(DB):
                 return True
         return False
 
-    def get_model_weight(self, id, version, relative_to="absolute", no_exist_handling = True):
+    def get_model_weight(self, id, version, relative_to="absolute", no_exist_handling = False):
         if relative_to is not "absulute":
             Exception("현재 relative_to 변수가 absolute가 아니면 무조건 latest weight만 반환되는 오류가 있는데 방치해둠...")
     
@@ -255,14 +296,74 @@ class WorkDB(DB):
             if no_exist_handling:
                 return self.make_model_weight_path(id, "latest", relative_to=relative_to)
             else:
-                return None
+                return ""
     
+    def get_unevaluated_epoches(self, id, task):
+        epoches = self.get_all_epoch(id)
+        evaluated_epoches = self.get_evaluated_epoches(id, task)
+        return sorted(list(set(epoches) - set(evaluated_epoches)))
     
+    def command_split(self, type, mode, n):
+        with open(f"/home/works/{type}.sh") as f:
+            lines = f.readlines()
+            splits = [[] for i in range(n)]
+            for i, line in enumerate(lines):
+                splits[i%n].append(line)
+
+        for i, split in enumerate(splits):
+            with open(f"/home/works/{type}{i}.sh", mode) as f:
+                for line in split:
+                    f.write(line)  
+                
+    def make_empty_eval_file(self, mode):
+        assert mode in ["train", "eval", "infer", "export"]
+        with open(f"/home/works/{mode}.sh", "w") as f:
+            f.write("")
     
-    def eval(self, id, version, task, relative_to="project", command_to="global", report_to="local", check_exist=True, check_weight=True, labelsets=None, data_dir=None, save = True):
+    def eval_all(self, id, task, relative_to="absolute", command_to="global", check_result = True, labelsets=None, data_dir=None, save = True):
+        
+        unevaluated_epoches =  self.get_unevaluated_epoches(id, task)
+        
+        code = self.get_command_code(id, "eval", relative_to=relative_to)
+        config = self.get_config(id, relative_to="project")
+        labelset_configs = [LabelsetDB().get_config(id, relative_to="project") for id in config["labelsets"]]
+        
+        if (data_dir == None) or (labelsets == None):
+            data_dir = labelset_configs[0]["dataset_dir"]
+            labelsets = sum([c["label"][task] for c in labelset_configs], [])
+        
+        for version in unevaluated_epoches:
+            
+            train_config = config["train_config"]
+            model_weight = self.get_model_weight(id, version, relative_to=relative_to)
+            model_weight = ".".join(model_weight.split(".")[:-1]) # 확장자 제거
+
+
+            options = {
+                    "Global.work_id":id,
+                    "Global.version":version,
+                    "Global.eval_task":task,
+                    "Global.checkpoints":model_weight,
+                    "Global.save_model_dir":config["trained_model_dir"],
+
+                    "Eval.dataset.data_dir": data_dir,
+                    "Eval.dataset.label_file_list":f"""['{"','".join(labelsets)}']""",
+                    "Eval.save":save,
+                    "Eval.check_exist":check_result,
+                    "Eval.dataset.cache_file": config["eval_cache_file"]
+                    }
+            
+            command = f"python {code} -c {train_config} -o {' '.join([f'{k}={v}' for k, v in options.items()])}"
+            
+            save_path = self.save_relative_to(id, "eval.sh", relative_to=relative_to, save_to=command_to)
+            with open(save_path, "a") as f:
+                f.write(command+"\n")    
+            
+    
+    def eval_one(self, id, version, task, relative_to="project", command_to="global", report_to="local", check_result=True, check_weight=True, labelsets=None, data_dir=None, save = True):
         item = self.get_report_value(id, version=version, task=task)
         
-        if check_exist:
+        if check_result:
             # 이미 결과가 있으면 취소
             if not(isinstance(item, type(None)) or item.empty):
                 print(f"(id:{id}, version:{version}, task:{task}) already evaluated")
@@ -281,7 +382,8 @@ class WorkDB(DB):
         labelset_configs = [LabelsetDB().get_config(id, relative_to="project") for id in config["labelsets"]]
         
         train_config = config["train_config"]
-        model_weight = self.get_model_weight(id, version, no_exist_handling=False) # 위에서 점검해서, weight이 없는 경우는 없음
+        model_weight = self.get_model_weight(id, version, relative_to=relative_to)
+        model_weight = ".".join(model_weight.split(".")[:-1]) # 확장자 제거
 
         if (data_dir == None) or (labelsets == None):
             data_dir = labelset_configs[0]["dataset_dir"]
@@ -297,7 +399,8 @@ class WorkDB(DB):
                    "Eval.dataset.data_dir": data_dir,
                    "Eval.dataset.label_file_list":f"""['{"','".join(labelsets)}']""",
                    "Eval.save":save,
-                   "Eval.check_exist":check_exist
+                   "Eval.check_exist":check_result,
+                   "Eval.dataset.cache_file": config["eval_cache_file"]
                    }
         
         command = f"python {code} -c {train_config} -o {' '.join([f'{k}={v}' for k, v in options.items()])}"
@@ -305,7 +408,13 @@ class WorkDB(DB):
         
         save_path = self.save_relative_to(id, "eval.sh", relative_to=relative_to, save_to=command_to)
         with open(save_path, "a") as f:
-            f.write(command+"\n")              
+            f.write(command+"\n")       
+    
+    def get_evaluated_epoches(self, id, task):
+        df = self.get_report_df(id)
+        df = df[df["task"] == task]
+        return df["version"].unique()
+    
             
     def get_command_code(self, id, task, relative_to="project"):
         assert task in ["train", "eval", "infer", "export"], f"code should be 'train', 'eval', or 'infer' but {task} is given"
@@ -335,7 +444,7 @@ class WorkDB(DB):
     
     
     
-
+        
     # 학습 코드 생성 (성공 실패 여부 반환) 
     def train(self, id, version, epoch, relative_to="project", command_to="global", epoch_check=True):
         assert relative_to in ["absolute", "project"], f"relative_to should be 'absolute' or 'project' but {relative_to} is given"
@@ -352,8 +461,11 @@ class WorkDB(DB):
             return False
             
         code = self.get_command_code(id, "train", relative_to=relative_to)
-        config = self.get_config(id, relative_to="project")
+        config = self.get_config(id, relative_to="absolute")
         labelset_configs = [LabelsetDB().get_config(id, relative_to="project") for id in config["labelsets"]]
+        self.get_work_dir_path(id)
+        
+        
         
         model_weight = self.get_model_weight(id, version, relative_to=relative_to)
         model_weight = ".".join(model_weight.split(".")[:-1]) # 확장자 제거
@@ -361,6 +473,7 @@ class WorkDB(DB):
         train_config = config["train_config"]
         train_labelsets = sum([c["label"]["train"] for c in labelset_configs], [])
         eval_labelsets = sum([c["label"]["eval"] for c in labelset_configs], [])
+        
         options = {
                    "Global.checkpoints":model_weight,
                    "Global.epoch_num":epoch,
@@ -368,9 +481,11 @@ class WorkDB(DB):
                    
                    "Train.dataset.data_dir": labelset_configs[0]["dataset_dir"],
                    "Train.dataset.label_file_list":f"""['{"','".join(train_labelsets)}']""",
+                   "Train.dataset.cache_file": config["train_cache_file"],
                    
                    "Eval.dataset.data_dir": labelset_configs[0]["dataset_dir"],
                    "Eval.dataset.label_file_list":f"""['{"','".join(eval_labelsets)}']""",
+                   "Eval.dataset.cache_file": config["eval_cache_file"]
                    }
         
         command = f"python {code} -c {train_config} -o {' '.join([f'{k}={v}' for k, v in options.items()])}"
@@ -525,10 +640,13 @@ class WorkDB(DB):
         # plt.legend()
         return plt    
 
-if __name__ == "__main__":
-    mdb = WorkDB()
+# if __name__ == "__main__":
+    # mdb = WorkDB()
+    # id = "rec___ABI_A___aihub_rec_10k_horizontal___C_ALL+IMF"
+    # task = "test"
+    # print(mdb.get_evaluated_epoches(id, "test"))
     
-        
+    # mdb.eval_all(None, id, task, relative_to="project", command_to="global", report_to="local", check_result=True, check_weight=True, labelsets=None, data_dir=None, save = True)
     
     # mdb.make("/home/configs/det/det_mv3_db.yml", "output1", "ai_hub_det_08_02_90_random_k_fold_5_1", "MobileNetV3_large_x0_5")/
     # mdb.make("/home/configs/rec/PP-OCRv3/multi_language/korean_PP-OCRv3_rec.yml", "output2", "ai_hub_rec_08_02_90", "korean_PP-OCRv3_rec")

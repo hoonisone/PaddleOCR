@@ -21,7 +21,7 @@ import sys
 from database import *
 import pandas as pd
 from pathlib import Path
-    
+
 __dir__ = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, __dir__)
 sys.path.insert(0, os.path.abspath(os.path.join(__dir__, '..')))
@@ -34,6 +34,8 @@ from ppocr.metrics import build_metric
 from ppocr.utils.save_load import load_model
 import tools.program as program
 import numpy as np
+
+
 
 def main():
     ###################################################### MH Modification Start
@@ -58,11 +60,14 @@ def main():
     valid_dataloader = build_dataloader(config, 'Eval', device, logger)
 
     # build post process
-    post_process_class = build_post_process(config['PostProcess'],
-                                            global_config)
+    post_process_class = build_post_process(config['PostProcess'], global_config)
     
     # build model
     # for rec algorithm
+    if config['PostProcess']["name"] in ["ABINetLabelDecode_GraphemeLabel", "ABINetLabelDecode_GraphemeLabel_B", "ABINetLabelDecode_GraphemeLabel_All"]:
+        class_num_dict = post_process_class.class_num_dict
+        config["Global"]["class_num_dict"] = class_num_dict
+        
     if hasattr(post_process_class, 'character'):
         character = getattr(post_process_class, 'character')
         if "use_grapheme" in global_config and global_config["use_grapheme"]:    
@@ -160,6 +165,8 @@ def main():
 
 
     # start eval
+    # print(model.backbone.conv1.weight[0])
+    # exit()
     metric = program.eval(model, valid_dataloader, post_process_class,
                           eval_class, model_type, config, extra_input, scaler,
                           amp_level, amp_custom_black_list)
@@ -178,7 +185,7 @@ def main():
         report["version"] = version
         report["task"] = task
         
-        workdb.report_eval(id, report)    
+        workdb.report_eval(id, report)
         print("Report the eval result successfully")
 
     

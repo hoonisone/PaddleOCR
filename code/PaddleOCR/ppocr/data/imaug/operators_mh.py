@@ -70,95 +70,20 @@ class GetFirstGrapheme(object):
     
     
 import functools
-from ppocr.utils.korean_compose import decompose_korean_char
+from ppocr.utils.korean_grapheme_label import decompose_korean_char
 
-# first_grapheme_dict = {
-#             'ᄀ': '가', 'ᄁ': '까', 'ᄂ': '나', 'ᄃ': '다', 'ᄄ': '따', 'ᄅ': '라',
-#             'ᄆ': '마', 'ᄇ': '바', 'ᄈ': '빠', 'ᄉ': '사', 'ᄊ': '싸', 'ᄋ': '아',
-#             'ᄌ': '자', 'ᄍ': '짜', 'ᄎ': '차', 'ᄏ': '카', 'ᄐ': '타', 'ᄑ': '파', 'ᄒ': '하'
-#         }
-
-
-# def extract_first_grapheme(text, type="first"):
-#     result = ''
-#     for char in text:
-#         # 한글 유니코드 범위인지 확인
-#         if 44032 <= ord(char) <= 55203:
-#             # 초성 구하기
-#             choseong_index = (ord(char) - 44032) // 588
-#             # 초성을 문자로 변환하여 결과에 추가
-#             choseong = chr(choseong_index + 0x1100)  # 초성 유니코드 시작값은 0x1100입니다.
-#             result += first_grapheme_dict[choseong]
-#         else: # 한글이 아니면 그대로 결과에 추가
-#             result += char
-            
-#     return result
-
-# sceond_grapheme_dict = {"ᅡ":"아","ᅢ":"애","ᅣ":"야","ᅤ":"얘","ᅥ":"어","ᅦ":"에","ᅧ":"여",
-# "ᅨ":"예","ᅩ":"오","ᅪ":"와","ᅫ":"왜","ᅬ":"외","ᅭ":"요","ᅮ":"우",
-# "ᅯ":"워","ᅰ":"웨","ᅱ":"위","ᅲ":"유","ᅳ":"으","ᅴ":"의","ᅵ":"이"}
-
-
-# def extract_second_grapheme(text):
-#     result = ''
-#     for char in text:
-#         # 한글 유니코드 범위인지 확인
-#         if 44032 <= ord(char) <= 55203:
-#             # 중성 구하기
-#             jungseong_index = ((ord(char) - 44032) % 588) // 28
-#             # 중성을 문자로 변환하여 결과에 추가
-#             jungseong = chr(jungseong_index + 0x1161)  # 중성 유니코드 시작값은 0x1161입니다.
-#             result += sceond_grapheme_dict[jungseong]
-#         else:
-#             # 한글이 아니면 그대로 결과에 추가
-#             result += char
-        
-#     return result
-
-# third_grapheme_dict = {"ᆨ":"윽","ᆫ":"은","ᆮ":"읃","ᆯ":"을","ᆷ":"음","ᆸ":"읍","ᆺ":"읏",
-# "ᆼ":"응","ᆽ":"읒","ᆾ":"읓","ᆿ":"읔","ᇀ":"읕","ᇁ":"읖","ᇂ":"읗",
-# "ᆩ":"윾","ᆻ":"읐","ᆪ":"윿","ᆬ":"읁","ᆭ":"읂","ᆰ":"읅","ᆱ":"읆",
-# "ᆲ":"읇","ᆳ":"읈","ᆴ":"읉","ᆵ":"읊","ᆶ":"읋","ᆹ":"읎"}
-
-
-# def extract_third_grapheme(text):
-#     result = ''
-#     has_jongseong = False  # 받침이 있는지 여부를 판별하기 위한 변수
-
-#     for char in text:
-#         # 한글 유니코드 범위인지 확인
-#         if 44032 <= ord(char) <= 55203:
-#             # 종성 구하기
-#             jongseong_index = (ord(char) - 44032) % 28
-
-#             # 받침이 있는 경우에만 결과에 추가하고, 받침이 없는 경우 "으"를 추가
-#             if jongseong_index != 0:
-#                 jongseong = chr(jongseong_index + 0x11A7)  # 종성 유니코드 시작값은 0x11A8이 아닌 0x11A7입니다.
-#                 result += third_grapheme_dict[jongseong]
-#             else:
-#                 result += '으'
-#         else:
-#             # 한글이 아니면 그대로 결과에 추가
-#             result += char
-    
-#     return result
 
 @functools.lru_cache()
 def extract_grapheme(text):
-    decomposed_test = decompose_korean_char(text)
-    return {
-        "character":text,
-        "initial":[x[0] for x in decomposed_test],
-        "medial":[x[1] for x in decomposed_test],
-        "final":[x[2] for x in decomposed_test]
-    }
-     
-    return {
-        "first":extract_first_grapheme(text),
-        "middle":extract_second_grapheme(text),
-        "last":extract_third_grapheme(text),
-        "origin":text
-    }
+    decomposed = decompose_korean_char(text)
+    decomposed["character"] = text
+    # return {
+    #     "character":text,
+    #     "initial":"".join([x[0] for x in decomposed_test]),
+    #     "medial":"".join([x[1] for x in decomposed_test]),
+    #     "final":"".join([x[2] for x in decomposed_test])
+    # }
+    return decomposed
 import copy
 
 class ExtractGrapheme(object):
@@ -168,9 +93,15 @@ class ExtractGrapheme(object):
     def __call__(self, data):     
         try:  
             origin_data = data
-            data["origin_label"] = data["label"]
-            data["label"] = extract_grapheme(data["label"])
+            data["text_label"] = extract_grapheme(data["label"]) # encode 되지 않고 평가 시 사용되는 레이블 (자칭 train_label)
+            data["label"] = copy.copy((data["text_label"])) # 추후 encode 되어 loss를 계산할 수 있도록 하는 레이블 (자칭 train_label)
+            
             return data
         except:
-            
             return origin_data
+        
+def test_ExtractGrapheme():
+    data = {"label":"안녕하세요"}
+    eg = ExtractGrapheme()
+    result = eg(data)
+    assert result["text_label"] == {'initial': '아나하사아', 'medial': '아여아에요', 'final': '은응으으으', 'character': '안녕하세요'}

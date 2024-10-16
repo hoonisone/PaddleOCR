@@ -94,7 +94,7 @@ class MultiLoss_Grapheme(nn.Layer):
     def __init__(self, handling_grapheme, **kwargs):
         super().__init__()
         self.handling_grapheme = handling_grapheme
-        self.weight = kwargs.get("weight", {"character":1, "first":1, "second":1, "third":1})
+        self.weight = kwargs.get("weight", {"character":1, "initial":1, "medial":1, "final":1})
                     
         def extract_kwargs(kwargs, idx):
             import copy
@@ -116,8 +116,16 @@ class MultiLoss_Grapheme(nn.Layer):
                 "length":batch[f"{grapheme}_label"]["length"],
                 "valid_ratio":batch["valid_ratio"]
             }
-            
-        total_loss = {grapheme: self.multiloss_dict[grapheme](predicts[grapheme], get_batch(batch, grapheme)) for grapheme in self.handling_grapheme}
-        total_loss["loss"] = sum([total_loss[grapheme]["loss"]*self.weight[grapheme] for grapheme in self.handling_grapheme])/len(self.handling_grapheme)
         
-        return total_loss
+
+        total_loss = {grapheme: self.multiloss_dict[grapheme](predicts[grapheme], get_batch(batch, grapheme)) for grapheme in self.handling_grapheme}
+        loss_dict = dict()
+        loss = 0
+        for k1, v1 in total_loss.items():
+            for k2, v2 in v1.items():
+                loss_dict[f"{k1}_{k2}"] = v2
+                loss += v2*self.weight[k1]
+        
+        loss_dict["loss"] = loss
+        
+        return loss_dict

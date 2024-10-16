@@ -89,7 +89,9 @@ def load_model(config, model, optimizer=None, model_type='det'):
 
         return best_model_dict
 
-    if checkpoints:
+    
+    # if checkpoints:
+    if checkpoints and os.path.exists(checkpoints + ".pdparams"):
         if checkpoints.endswith('.pdparams'):
             checkpoints = checkpoints.replace('.pdparams', '')
         assert os.path.exists(checkpoints + ".pdparams"), \

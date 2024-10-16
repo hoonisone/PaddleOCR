@@ -103,7 +103,6 @@ class BaseRecLabelEncode(object):
                  use_space_char=False,
                  use_unkown = False,
                  lower=False):
-
         self.max_text_len = max_text_length
         self.beg_str = "<BOS>"
         self.end_str = "<EOS>"
@@ -160,8 +159,8 @@ class BaseRecLabelEncode(object):
                 if self.use_unkown:
                     text_list.append(self.dict[self.unkown_str])
                 else:
-                    # logger = get_logger()
-                    # logger.warning('{} is not in dict'.format(char))            
+                    logger = get_logger()
+                    logger.warning('{} is not in dict'.format(char))            
                     continue
             else:
                 text_list.append(self.dict[char])
@@ -178,11 +177,13 @@ class CTCLabelEncode(BaseRecLabelEncode):
                  max_text_length,
                  character_dict_path=None,
                  use_space_char=False,
+                 use_unknown = False,
                  **kwargs):
         super(CTCLabelEncode, self).__init__(
             max_text_length, character_dict_path, use_space_char)
 
     def __call__(self, data):
+
         text = data['label']
         text = self.encode(text)
         if text is None:
@@ -200,6 +201,42 @@ class CTCLabelEncode(BaseRecLabelEncode):
     def add_special_char(self, dict_character):
         dict_character = ['blank'] + dict_character
         return dict_character
+    
+class CTCLabelEncode_GraphemeLabel(BaseRecLabelEncode):
+    def __init__(self,
+                max_text_length,
+                character_dict_path=None,
+                use_space_char=False,
+                handling_grapheme = None,
+                use_unknown = False,
+                **kwargs):
+
+        
+        self.handling_grapheme = handling_grapheme
+    
+            
+        self.encoder_dict = {grapheme: CTCLabelEncode(max_text_length,
+                character_dict_path=character_dict_path[grapheme],
+                use_space_char=use_space_char,
+                use_unknown = use_unknown
+                ) for grapheme in self.handling_grapheme}
+        
+        
+
+    def __call__(self, data):
+        label_dict = dict()
+        length_dict = dict()
+        label_ace_dict = dict()
+        for grapheme in self.handling_grapheme:
+            encoded_data = self.encoder_dict[grapheme]({"label":data["label"][grapheme]})
+            label_dict[grapheme] = encoded_data['label']
+            length_dict[grapheme] = encoded_data['length']
+            label_ace_dict[grapheme] = encoded_data['label_ace']
+        data['label'] = label_dict
+        data['length'] = length_dict
+        data['label_ace'] = label_ace_dict
+        return data            
+                
 
 
 class E2ELabelEncodeTest(BaseRecLabelEncode):
@@ -1389,7 +1426,7 @@ class MultiLabelEncode_Grapheme(object):
     def __call__(self, data):
         
         data_out = dict()
-        data_out["origin_label"] = data["origin_label"]
+        data_out["text_label"] = data["text_label"]
         for g in self.grapheme:
             data_copy = copy.deepcopy(data) 
             data_copy["label"] = data["label"][g]
@@ -1510,7 +1547,7 @@ class ABINetLabelEncode(BaseRecLabelEncode):
         super(ABINetLabelEncode, self).__init__(
             max_text_length, character_dict_path, use_space_char, use_unkown = use_unkown)
         self.ignore_index = ignore_index
-    
+
     def __call__(self, data):
 
         text = data['label']
@@ -1579,16 +1616,19 @@ class ABINetLabelEncode_GraphemeLabel(object):
                                     use_unkown = True)
 
     def __call__(self, data):
-        
         data_out = dict()
+        length_out = dict()
         for name in self.handling_grapheme:
             new_data = {"label":data["label"][name]}
             x = self.encoder_dict[name](new_data)
             if x == None:
                 return None
             data_out[name] = x["label"]
+            length_out[name] = x["length"]
             
         data["label"] = data_out
+        data["length"] = length_out
+        
         return data
 
 class SRLabelEncode(BaseRecLabelEncode):

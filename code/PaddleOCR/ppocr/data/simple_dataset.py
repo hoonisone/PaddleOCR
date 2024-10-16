@@ -21,7 +21,7 @@ import random
 import traceback
 from paddle.io import Dataset
 from .imaug import transform, create_operators
-from ppocr.utils.dataset_cache import DatasetCache
+from ppocr.utils.dataset_cache import DatasetCache, HDF5PickleStorage
 
 class SimpleDataSet(Dataset): 
     def __init__(self, config, mode, logger, seed=None):
@@ -42,12 +42,13 @@ class SimpleDataSet(Dataset):
         label_file_list = dataset_config.pop('label_file_list') # 왜 get이 아니라 pop으로 했을까?
         data_source_num = len(label_file_list)
         ratio_list = dataset_config.get("ratio_list", 1.0)
-        self.cache = dataset_config.get('use_cache', True)
-
+        self.cache = dataset_config.get('use_cache', False)
         if self.cache:
             self.cache_file = dataset_config.get('cache_file', "/home/dataset_cache.h5")
-        
-            self.dataset_cache = DatasetCache(self.cache_file)
+            
+
+            self.dataset_cache = HDF5PickleStorage(self.cache_file)
+
 
         if isinstance(ratio_list, (float, int)):
             ratio_list = [float(ratio_list)] * int(data_source_num)
@@ -68,6 +69,9 @@ class SimpleDataSet(Dataset):
         self.set_epoch_as_seed(self.seed, dataset_config)
 
         self.ops = create_operators(dataset_config['transforms'], global_config)
+        # print(dataset_config.get('transforms_uncachiable', []))
+        self.ops_uncachiable = create_operators(dataset_config.get('transforms_uncachiable', []), global_config)
+        
         self.ext_op_transform_idx = dataset_config.get("ext_op_transform_idx",2)
 
         self.need_reset = True in [x < 1 for x in ratio_list]
@@ -161,7 +165,12 @@ class SimpleDataSet(Dataset):
             if hasattr(op, 'ext_data_num'):
                 ext_data_num = getattr(op, 'ext_data_num')
                 break
-        load_data_ops = self.ops[:self.ext_op_transform_idx]
+        ext_op_keys = list(self.ops.keys())[:self.ext_op_transform_idx]
+
+        load_data_ops = {key: self.ops[key] for key in ext_op_keys}
+        # load_data_ops = self.ops[:self.ext_op_transform_idx]
+        # for key in 
+        
         ext_data = []
  
         while len(ext_data) < ext_data_num:
@@ -191,6 +200,7 @@ class SimpleDataSet(Dataset):
         return ext_data
 
     def __getitem__(self, idx):
+    
         file_idx = self.data_idx_order_list[idx] # self.data_idx_order_list[idx]는 항상 idx와 동일한 것 아닌가?..
         data_line = self.data_lines[file_idx] # data_line은 idx에 대한 데이터 정보 한 줄을 의미함 (label file에서의 한 줄)
         try:
@@ -200,12 +210,31 @@ class SimpleDataSet(Dataset):
             file_name = self._try_parse_filename_list(file_name) # file_name 이 json인 경우 처리해주는 건데, 그런 경우가 언제 있는지?...
             label = substr[1]
             img_path = os.path.join(self.data_dir, file_name)
+        
             if self.cache:
                 cache_key = img_path
+                cache_key = str(cache_key)[2:] # key 값에는 ./ 이 없음
+                # print(cache_key)
                 data = self.dataset_cache.load_samples_from_hdf5(cache_key)
-                if data:
+                # print(data)
+                if data is not None:
+                    
+                    ############################################################################################################################################# 임시 방편 코드
+                    # h5 에 저장했다가 로드하면 list나 float나 죄다 numpy로 변환되서 문제 생감
+                    # ABINet에 ext_data와 valid_ratio가 numpy가 되면 안되는 거 같음
+                    # if "valid_ratio" in data:
+                    #     data["valid_ratio"] = float(data["valid_ratio"])
+                    # if "ext_data" in data:
+                    #     data["ext_data"] = data["ext_data"].tolist()
+                    ############################################################################################################################################
+                    # print("hit")
+                    # print(1, data)
+                    data = transform(data, self.ops_uncachiable)
+                    # print(2, data)
+                    # print(data["image"].shape)
+                    # print("hit")
                     return data
-
+            # print("not hit")
             data = {'img_path': img_path, 'label': label}
             if not os.path.exists(img_path):
                 raise Exception("{} does not exist!".format(img_path))
@@ -214,14 +243,18 @@ class SimpleDataSet(Dataset):
                 data['image'] = img
             data['ext_data'] = self.get_ext_data()
             outs = transform(data, self.ops)
+            data = transform(data, self.ops_uncachiable)
+                      
             
         except:
             self.logger.error(
                 "When parsing line {}, error happened with msg: {}".format(
                     data_line, traceback.format_exc()))
-            exit()
-            # outs = None
-    
+            with open("/home/data_error.txt", "a") as f:
+                f.write(data_line)
+                
+            outs = None
+        
         if outs is None:
             # during evaluation, we should fix the idx to get same results for many times of evaluation.
             rnd_idx = np.random.randint(self.__len__(
@@ -231,8 +264,8 @@ class SimpleDataSet(Dataset):
         if self.cache:
             pass
             # self.dataset_cache.save_samples_to_hdf5(outs, cache_key)
-            
-
+        
+        # print("B", type(outs["image"]))
         return outs            
 
     def __len__(self):

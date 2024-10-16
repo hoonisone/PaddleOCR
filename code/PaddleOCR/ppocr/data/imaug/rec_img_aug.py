@@ -152,25 +152,73 @@ class RecConAug(object):
                                        (ext_w, self.image_shape[0]))
         data['image'] = np.concatenate(
             [data['image'], ext_data['image']], axis=1)
-        data["label"] += ext_data["label"]
+        
+        self.merge_label(data, ext_data)
         return data
 
     def __call__(self, data):
         rnd_num = random.random()
         if rnd_num > self.prob:
             return data
+
         for idx, ext_data in enumerate(data["ext_data"]):
-            if len(data["label"]) + len(ext_data[
-                    "label"]) > self.max_text_length:
+            if self.label_length_check(data, ext_data):
                 break
             concat_ratio = data['image'].shape[1] / data['image'].shape[
                 0] + ext_data['image'].shape[1] / ext_data['image'].shape[0]
             if concat_ratio > self.max_wh_ratio:
                 break
-            data = self.merge_ext_data(data, ext_data)
+            self.merge_ext_data(data, ext_data)
         data.pop("ext_data")
         return data
+    
+    def label_length_check(self, data, ext_data):
+        if len(data["label"]) + len(ext_data["label"]) > self.max_text_length:
+            return False
+        return True
+    
+    def merge_label(self, data, ext_data):
+        data["label"] += ext_data["label"]
 
+
+from .operators_mh import ExtractGrapheme
+class RecConAug_GraphemeLabel(RecConAug):
+    def __init__(self,
+                 prob=0.5,
+                 image_shape=(32, 320, 3),
+                 max_text_length=25,
+                 ext_data_num=1,
+                 handling_grapheme = None,
+                 **kwargs):
+        super().__init__(prob=prob, 
+                        image_shape=image_shape,
+                        max_text_length=max_text_length,
+                        ext_data_num=ext_data_num,
+                        **kwargs)
+        
+        self.handling_grapheme = handling_grapheme
+        self.extract_grapheme = ExtractGrapheme()
+
+    def label_length_check(self, data, ext_data):
+        if isinstance(ext_data["label"], str):
+            ext_data = self.extract_grapheme(ext_data)
+        
+
+    
+        for g in self.handling_grapheme:
+            if len(data["label"][g]) + len(ext_data["label"][g]) > self.max_text_length:
+                return False
+            return True
+    
+    def merge_label(self, data, ext_data):
+        # 여기서 중요한 것은 ext_data의 경우 Extract Grapheme 이 수행되지 않음
+        
+        if isinstance(ext_data["label"], str):
+            ext_data = self.extract_grapheme(ext_data)
+            
+        
+        for g in self.handling_grapheme:
+            data["label"][g] += ext_data["label"][g]
 
 class SVTRRecAug(object):
     def __init__(self,

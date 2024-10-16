@@ -1,1 +1,3 @@
 bbox_visualizer
+h5py
+pydantic

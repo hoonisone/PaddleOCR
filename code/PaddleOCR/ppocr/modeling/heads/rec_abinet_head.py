@@ -357,130 +357,134 @@ class ABINetHead(nn.Layer):
 
 
 class ABINetHead_GraphemeLabel_old(ABINetHead):
-    def __init__(self,
-                 in_channels,
-                 out_channels,
-                 d_model=512,  
-                 nhead=8,
-                 num_layers=3,
-                 dim_feedforward=2048,
-                 dropout=0.1,
-                 max_length=25,
-                 use_lang=False,
-                 class_num_dict=None, # None이 아니면 grapheme 방식으로 동작
-                 iter_size=1, **kwargs):
+    pass
+    # def __init__(self,
+    #              in_channels,
+    #              out_channels,
+    #              d_model=512,  
+    #              nhead=8,
+    #              num_layers=3,
+    #              dim_feedforward=2048,
+    #              dropout=0.1,
+    #              max_length=25,
+    #              use_lang=False,
+    #              class_num_dict=None, # None이 아니면 grapheme 방식으로 동작
+    #              iter_size=1, **kwargs):
 
-        super().__init__(in_channels, out_channels, d_model, nhead, num_layers, dim_feedforward, dropout, max_length, use_lang, iter_size, **kwargs)
-        if class_num_dict is None:
-            raise Exception("class_num_dict must not be None")
+    #     super().__init__(in_channels, out_channels, d_model, nhead, num_layers, dim_feedforward, dropout, max_length, use_lang, iter_size, **kwargs)
+    #     if class_num_dict is None:
+    #         raise Exception("class_num_dict must not be None")
         
-        self.class_num_dict = class_num_dict
-        self.main_label = "character" if "character" in class_num_dict.keys() else "initial"   
+    #     self.class_num_dict = class_num_dict
+    #     self.main_label = "character" if "character" in class_num_dict.keys() else "initial"   
         
     
-    def split_grapheme_logits(self, x):
-        self.class_num_dict
+    # def split_grapheme_logits(self, x):
+    #     self.class_num_dict
         
-        index_ranges = {}
-        start_index = 0
-        for key, length in self.class_num_dict.items():
-            index_ranges[key] = (start_index, start_index + length)
-            start_index += length
+    #     index_ranges = {}
+    #     start_index = 0
+    #     for key, length in self.class_num_dict.items():
+    #         index_ranges[key] = (start_index, start_index + length)
+    #         start_index += length
     
-        dict_out = {key : x[:, :, start:end] for key, (start, end) in index_ranges.items()}
-        return dict_out
-        # _in = self.class_num_dict["initial"]
-        # _mn = self.class_num_dict["medial"]
-        # _fn = self.class_num_dict["final"]
+    #     dict_out = {key : x[:, :, start:end] for key, (start, end) in index_ranges.items()}
+    #     return dict_out
+    #     # _in = self.class_num_dict["initial"]
+    #     # _mn = self.class_num_dict["medial"]
+    #     # _fn = self.class_num_dict["final"]
         
-        # f = x[:, :, :_in]
-        # m = x[:, :, _in:_in+_mn]
-        # l = x[:, :, _in+_mn:]
-        # return f, m, l
+    #     # f = x[:, :, :_in]
+    #     # m = x[:, :, _in:_in+_mn]
+    #     # l = x[:, :, _in+_mn:]
+    #     # return f, m, l
     
-    def concat_grapheme_logits(self, x, axis=-1):
-        temp_list = []
-        for key in ["character", "initial", "medial", "final"]:
-            if key in x:
-                temp_list.append(x[key])
+    # def concat_grapheme_logits(self, x, axis=-1):
+    #     temp_list = []
+    #     for key in ["character", "initial", "medial", "final"]:
+    #         if key in x:
+    #             temp_list.append(x[key])
                 
-        return paddle.concat(temp_list, axis=axis)
+    #     return paddle.concat(temp_list, axis=axis)
     
-    def softmax_grapheme_logits(self, x, axis=-1):
-        grapheme_logits = self.split_grapheme_logits(x)
-        grapheme_logits = {name:F.softmax(logit, -1) for name, logit in grapheme_logits.items()}
-        return self.concat_grapheme_logits(grapheme_logits, axis=axis)
+    # def softmax_grapheme_logits(self, x, axis=-1):
+    #     grapheme_logits = self.split_grapheme_logits(x)
+    #     grapheme_logits = {name:F.softmax(logit, -1) for name, logit in grapheme_logits.items()}
+    #     return self.concat_grapheme_logits(grapheme_logits, axis=axis)
 
-    def forward(self, x, targets=None):
+    # def forward(self, x, targets=None):
 
-        x = x.transpose([0, 2, 3, 1])
-        _, H, W, C = x.shape
-        feature = x.flatten(1, 2)
+    #     x = x.transpose([0, 2, 3, 1])
+    #     _, H, W, C = x.shape
+    #     feature = x.flatten(1, 2)
 
-        feature = self.pos_encoder(feature) # 미리 계산된 PE 상수 값에 대해 feature 범위 만큼만 추출하여 더함, 그 뒤에 dropout
-        # Positional Encoding에서는 [sequence length, batch size, feature dim]으로 입력을 받는다.
-        # 근데 지금은 [batch size, sequence length, feature dim]으로 입력을 받는다.    
+    #     feature = self.pos_encoder(feature) # 미리 계산된 PE 상수 값에 대해 feature 범위 만큼만 추출하여 더함, 그 뒤에 dropout
+    #     # Positional Encoding에서는 [sequence length, batch size, feature dim]으로 입력을 받는다.
+    #     # 근데 지금은 [batch size, sequence length, feature dim]으로 입력을 받는다.    
         
-        for encoder_layer in self.encoder:
-            feature = encoder_layer(feature)# multi-head attention
-            # input: [B, S, D] batch size, sequence length, feature dim
-            # output: [B, S, D] batch size, sequence length, feature dim
+    #     for encoder_layer in self.encoder:
+    #         feature = encoder_layer(feature)# multi-head attention
+    #         # input: [B, S, D] batch size, sequence length, feature dim
+    #         # output: [B, S, D] batch size, sequence length, feature dim
         
-        feature = feature.reshape([0, H, W, C]).transpose([0, 3, 1, 2])
+    #     feature = feature.reshape([0, H, W, C]).transpose([0, 3, 1, 2])
         
         
-        v_feature, attn_scores = self.decoder(feature)  # (B, N, C), (B, C, H, W)
-        vis_logits = self.cls(v_feature)  # (B, N, C)
-        # logits은 token이 각 class에 속할 확률을 나타낸다.
-        # (B, N, C) -> 샘플별, 토큰 별 class에 속할 확률 (확률 보단 적합도에 가깝다. 0~1은 아니고 0~무한대의 값)
-        logits = vis_logits
-        grapheme_logit_dict = self.split_grapheme_logits(logits)
+    #     v_feature, attn_scores = self.decoder(feature)  # (B, N, C), (B, C, H, W)
+    #     vis_logits = self.cls(v_feature)  # (B, N, C)
+    #     # logits은 token이 각 class에 속할 확률을 나타낸다.
+    #     # (B, N, C) -> 샘플별, 토큰 별 class에 속할 확률 (확률 보단 적합도에 가깝다. 0~1은 아니고 0~무한대의 값)
+    #     logits = vis_logits
+    #     grapheme_logit_dict = self.split_grapheme_logits(logits)
              
-        vis_lengths = _get_length(grapheme_logit_dict[self.main_label])
+    #     vis_lengths = _get_length(grapheme_logit_dict[self.main_label])
         
-        if self.use_lang:
-            align_logits = vis_logits
-            align_lengths = vis_lengths
-            all_l_res, all_a_res = [], []
-            for i in range(self.iter_size):
-                # tokens = F.softmax(align_logits, axis=-1)
-                tokens= self.softmax_grapheme_logits(align_logits, axis=-1)
-                lengths = align_lengths
-                lengths = paddle.clip(
-                    lengths, 2, self.max_length)  # TODO:move to langauge model
-                l_feature, l_logits = self.language(tokens, lengths)
+    #     if self.use_lang:
+    #         align_logits = vis_logits
+    #         align_lengths = vis_lengths
+    #         all_l_res, all_a_res = [], []
+    #         for i in range(self.iter_size):
+    #             # tokens = F.softmax(align_logits, axis=-1)
+    #             tokens= self.softmax_grapheme_logits(align_logits, axis=-1)
+    #             lengths = align_lengths
+    #             lengths = paddle.clip(
+    #                 lengths, 2, self.max_length)  # TODO:move to langauge model
+    #             l_feature, l_logits = self.language(tokens, lengths)
 
-                # alignment
-                all_l_res.append(l_logits)
-                fuse = paddle.concat((l_feature, v_feature), -1)
-                f_att = F.sigmoid(self.w_att_align(fuse))
-                output = f_att * v_feature + (1 - f_att) * l_feature
-                align_logits = self.cls_align(output)  # (B, N, C)
-                f_align_logits = self.split_grapheme_logits(align_logits)
+    #             # alignment
+    #             all_l_res.append(l_logits)
+    #             fuse = paddle.concat((l_feature, v_feature), -1)
+    #             f_att = F.sigmoid(self.w_att_align(fuse))
+    #             output = f_att * v_feature + (1 - f_att) * l_feature
+    #             align_logits = self.cls_align(output)  # (B, N, C)
+    #             f_align_logits = self.split_grapheme_logits(align_logits)
                 
-                align_lengths = _get_length(f_align_logits[self.main_label])
-                all_a_res.append(align_logits)
-            if self.training:
-                return {
-                    'align': all_a_res,
-                    'lang': all_l_res,
-                    'vision': vis_logits
-                }
-            else:
-                logits = align_logits
-        if self.training:
-            return {
-                'vision': vis_logits
-            }
-            # return logits
-        else:
-            # return F.softmax(logits, -1)
-            return self.softmax_grapheme_logits(logits, axis=-1)
+    #             align_lengths = _get_length(f_align_logits[self.main_label])
+    #             all_a_res.append(align_logits)
+    #         if self.training:
+    #             return {
+    #                 'align': all_a_res,
+    #                 'lang': all_l_res,
+    #                 'vision': vis_logits
+    #             }
+    #         else:
+    #             logits = align_logits
+    #     if self.training:
+    #         return {
+    #             'vision': vis_logits
+    #         }
+    #         # return logits
+    #     else:
+    #         # return F.softmax(logits, -1)
+    #         return self.softmax_grapheme_logits(logits, axis=-1)
 
 class ABINetHead_GraphemeLabel(ABINetHead):
+    # grapheme 들을 한 vecter로 추론하고 각 grapheme 크기로 나눈다.
+    
+    
     def __init__(self,
                  in_channels,
-                 out_channels,
+                 out_channels: dict, # 일반적으로 int이나 grapheme 클래스에서는 dict
                  d_model=512,  
                  nhead=8,
                  num_layers=3,
@@ -488,23 +492,20 @@ class ABINetHead_GraphemeLabel(ABINetHead):
                  dropout=0.1,
                  max_length=25,
                  use_lang=False,
-                 class_num_dict=None, # None이 아니면 grapheme 방식으로 동작
                  iter_size=1, **kwargs):
 
-        super().__init__(in_channels, out_channels, d_model, nhead, num_layers, dim_feedforward, dropout, max_length, use_lang, iter_size, **kwargs)
-        if class_num_dict is None:
-            raise Exception("class_num_dict must not be None")
+        total_output = sum(out_channels.values())
+        super().__init__(in_channels, total_output, d_model, nhead, num_layers, dim_feedforward, dropout, max_length, use_lang, iter_size, **kwargs)
         
-        self.class_num_dict = class_num_dict
-        self.main_label = "character" if "character" in class_num_dict.keys() else "initial"   
+        self.out_channels = out_channels
+        self.main_label = "character" if "character" in self.out_channels.keys() else "initial"   
         
     
     def split_grapheme_logits(self, x):
-        self.class_num_dict
         
         index_ranges = {}
         start_index = 0
-        for key, length in self.class_num_dict.items():
+        for key, length in self.out_channels.items():
             index_ranges[key] = (start_index, start_index + length)
             start_index += length
     
@@ -519,7 +520,7 @@ class ABINetHead_GraphemeLabel(ABINetHead):
                 
         return paddle.concat(temp_list, axis=axis)
     
-    def softmax_grapheme_logits(self, x, axis=-1):
+    def softmax_for_each_grapheme_logits(self, x, axis=-1):
         grapheme_logits = self.split_grapheme_logits(x)
         grapheme_logits = {name:F.softmax(logit, -1) for name, logit in grapheme_logits.items()}
         return self.concat_grapheme_logits(grapheme_logits, axis=axis)
@@ -546,37 +547,44 @@ class ABINetHead_GraphemeLabel(ABINetHead):
         vis_logits = self.cls(v_feature)  # (B, N, C)
         # logits은 token이 각 class에 속할 확률을 나타낸다.
         # (B, N, C) -> 샘플별, 토큰 별 class에 속할 확률 (확률 보단 적합도에 가깝다. 0~1은 아니고 0~무한대의 값)
-        logits = vis_logits
-        grapheme_logit_dict = self.split_grapheme_logits(logits)
+        # logits = vis_logits
+        vis_grapheme_logit = self.split_grapheme_logits(vis_logits)
              
-        vis_lengths = _get_length(grapheme_logit_dict[self.main_label])
+        vis_lengths = _get_length(vis_grapheme_logit[self.main_label])
         
-        report = {'vision': vis_logits}
+        report = {'vision': vis_grapheme_logit}
         
         if self.use_lang:
-            align_logits = vis_logits
+            align_logits = vis_logits # grapheme이 하나의 벡터로 모인 형태
             align_lengths = vis_lengths
-            all_l_res, all_a_res = [], []
+            # all_l_res, all_a_res = [], []
             for i in range(self.iter_size):
                 # tokens = F.softmax(align_logits, axis=-1)
-                tokens= self.softmax_grapheme_logits(align_logits, axis=-1)
+                tokens= self.softmax_for_each_grapheme_logits(align_logits, axis=-1)
                 lengths = align_lengths
                 lengths = paddle.clip(
                     lengths, 2, self.max_length)  # TODO:move to langauge model
                 l_feature, l_logits = self.language(tokens, lengths)
 
                 # alignment
-                all_l_res.append(l_logits)
-                fuse = paddle.concat((l_feature, v_feature), -1)
+
+                lang_grapheme_logits = self.split_grapheme_logits(l_logits)
+                report[f"lang{i+1}"] = lang_grapheme_logits
+                
+                
+                # fuse the features of vision and lang
+                fuse = paddle.concat((l_feature, v_feature), -1) # fuse는 logits을 구하기 전 상태인 feature 단위에서 수행
                 f_att = F.sigmoid(self.w_att_align(fuse))
                 output = f_att * v_feature + (1 - f_att) * l_feature
+                
+                
                 align_logits = self.cls_align(output)  # (B, N, C)
                 f_align_logits = self.split_grapheme_logits(align_logits)
                 
                 align_lengths = _get_length(f_align_logits[self.main_label])
-                all_a_res.append(align_logits)
-            report["lang"] = all_l_res
-            report["align"] = all_a_res
+                report[f"align{i+1}"] = f_align_logits
+            # report["lang"] = all_l_res
+            # report["align"] = all_a_res
 
         return report
 
@@ -679,12 +687,12 @@ class ABINetHead_GraphemeLabel_B(ABINetHead):
         ### 코드 수정이 덜 된 듯
         
         
-        
+        report = {'vision': vis_logits}
         
         if self.use_lang:
             align_logits = vis_logits
             align_lengths = vis_lengths
-            all_l_res, all_a_res = [], []
+            # all_l_res, all_a_res = [], []
             for i in range(self.iter_size):
                 # tokens = F.softmax(align_logits, axis=-1)
                 tokens= self.softmax_grapheme_logits(align_logits, axis=-1)
@@ -694,7 +702,9 @@ class ABINetHead_GraphemeLabel_B(ABINetHead):
                 l_feature, l_logits = self.language(tokens, lengths)
 
                 # alignment
-                all_l_res.append(l_logits)
+                # all_l_res.append(l_logits)
+                
+                report[f"lang{i+1}"] = l_logits
                 fuse = paddle.concat((l_feature, v_feature), -1)
                 
                 f_att = F.sigmoid(self.w_att_align(fuse))
@@ -703,24 +713,26 @@ class ABINetHead_GraphemeLabel_B(ABINetHead):
                 f_align_logits = self.split_grapheme_logits(align_logits)
                 
                 align_lengths = _get_length(f_align_logits[self.main_label])
-                all_a_res.append(align_logits)
+                report[f"align{i+1}"] = align_logits
+                # all_a_res.append(align_logits)
             # if self.training:
-            return {
-                'align': all_a_res,
-                'lang': all_l_res,
-                'vision': vis_logits
-            }
-            # else:
-                # logits = align_logits
-        # if self.training:
-        return {
-            'vision': vis_logits
-        }
+        return report
+        #     return {
+        #         'align': all_a_res,
+        #         'lang': all_l_res,
+        #         'vision': vis_logits
+        #     }
+        #     # else:
+        #         # logits = align_logits
+        # # if self.training:
+        # return {
+        #     'vision': vis_logits
+        # }
             # return logits
         # else:
             # return F.softmax(logits, -1)
             # return self.softmax_grapheme_logits(logits, axis=-1)
-
+ 
 
 def _get_length(logit):
     """ 

@@ -29,7 +29,7 @@ from .det_ct_loss import CTLoss
 from .det_drrg_loss import DRRGLoss
 
 # rec loss
-from .rec_ctc_loss import CTCLoss
+from .rec_ctc_loss import CTCLoss, CTCLoss_Grapheme_label
 from .rec_att_loss import AttentionLoss
 from .rec_srn_loss import SRNLoss
 from .rec_ce_loss import CELoss, CELoss_GraphemeLabel
@@ -76,7 +76,7 @@ def build_loss(config, **kwargs):
         'VQASerTokenLayoutLMLoss', 'LossFromOutput', 'PRENLoss', 'MultiLoss',
         'TableMasterLoss', 'SPINAttentionLoss', 'VLLoss', 'StrokeFocusLoss',
         'SLALoss', 'CTLoss', 'RFLLoss', 'DRRGLoss', 'CANLoss', 'TelescopeLoss',
-        'SATRNLoss', 'NRTRLoss', "MultiLoss_Grapheme", "CELoss_GraphemeLabel"
+        'SATRNLoss', 'NRTRLoss', "MultiLoss_Grapheme", "CELoss_GraphemeLabel", "CTCLoss_Grapheme_label"
     ]
     config = copy.deepcopy(config)
     config.update(kwargs)

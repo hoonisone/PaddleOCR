@@ -62,8 +62,8 @@ class DB:
         if relative_to == "dir":
             return str(Path(id)/path).replace("\\", "/")
         elif relative_to == "project":
-            return str(Path(self.DIR)/id/path).replace("\\", "/")
+            return str(Path(self.dir)/id/path).replace("\\", "/")
         elif relative_to == "absolute":
-            return str(Path(self.PROJECT_ROOT)/self.DIR/id/path).replace("\\", "/")
+            return str(Path(self.PROJECT_ROOT)/self.dir/id/path).replace("\\", "/")
         else:
             return path

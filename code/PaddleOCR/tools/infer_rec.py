@@ -16,6 +16,7 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+from click import pass_obj
 import numpy as np
 
 import os
@@ -41,13 +42,17 @@ from ppocr.utils.utility import get_image_file_list
 import tools.program as program
 
 
-from ppocr.utils.korean_compose import compose_korean_char
+from ppocr.utils.korean_grapheme_label import compose_korean_char, _compose_korean_char
 def main():
     global_config = config['Global']
 
     # build post process
     post_process_class = build_post_process(config['PostProcess'],
                                             global_config)
+
+    if config['PostProcess']["name"] in ["ABINetLabelDecode_GraphemeLabel", "ABINetLabelDecode_GraphemeLabel_B", "ABINetLabelDecode_GraphemeLabel_All"]:
+        class_num_dict = post_process_class.class_num_dict
+        config["Global"]["class_num_dict"] = class_num_dict
 
     # build model
     if hasattr(post_process_class, 'character'):
@@ -189,45 +194,32 @@ def main():
                 preds = model([images, image_mask, label])
             else:
                 preds = model(images)
-            post_result = post_process_class(preds)
+            if "grapheme" in config["Global"]:
+            
+                preds_args = {name: preds.get(name, None) for name in config["Global"]["grapheme"]}
+                # labels_args = {f"{name}_label": batch[f"{name}_label"]["label_ctc"] for name in config["Global"]["grapheme"]}
+                
+
+                
+                post_result = post_process_class(preds_args, label = None)
+
+            else:
+                label = batch["label"] if "label" in batch else None
+                post_result = post_process_class(preds, label)
+
 
             info = None
+               
+            
             if isinstance(post_result, dict):
-                rec_info = dict()
-                for key in post_result:
-                    if len(post_result[key][0]) >= 2:
-                        rec_info[key] = {
-                            "label": post_result[key][0][0],
-                            "score": float(post_result[key][0][1]),
-                        }
-                info = json.dumps(rec_info, ensure_ascii=False)
-                
-            elif isinstance(post_result, list) and isinstance(post_result[0],
-                                                              int):
+                info = json.dumps(post_result, ensure_ascii=False)
+            elif isinstance(post_result, list) and isinstance(post_result[0], int):
                 # for RFLearning CNT branch 
                 info = str(post_result[0])
             else:
-                # if len(post_result[0]) >= 2:
                 info={k:v for k, v in post_result[0].items()}
-                if all([x in post_result[0].keys() for x in ["first", "second", "third"]]):
-                    result = list(zip(post_result[0]["first"][0], post_result[0]["second"][0], post_result[0]["third"][0], post_result[0]["first"][1], post_result[0]["second"][1], post_result[0]["third"][1]))
-                    # p = sum([post_result[0]["first"][1], post_result[0]["second"][1], post_result[0]["third"][1]])/3
-                    pred = compose_korean_char(result)
-                    info["composed"] = pred
+            
 
-                # if len(post_result[0]) >= 1:
-  
-                #     if global_config["infer_type"] == "grapheme":
-                #         result = list(zip(post_result[0]["first"][0], post_result[0]["second"][0], post_result[0]["third"][0]))
-                #         p = sum([post_result[0]["first"][1], post_result[0]["second"][1], post_result[0]["third"][1]])/3
-                #         pred = compose_korean_char(result)
-                #         info = pred + "\t" + str(p)
-                #     elif global_config["infer_type"] == "character":
-                #         info = post_result[0]["character"][0] + "\t" + str(post_result[0]["character"][1])
-                #     else:
-                #         any_grapheme = global_config["handling_grapheme"][0]
-                #         info = post_result[0][any_grapheme][0] + "\t" + str(post_result[0][any_grapheme][1])
-                    # info = post_result[0][0] + "\t" + str(post_result[0][1])
             if info is not None:
                 
                 logger.info("\t result: {}".format(str(info)))
@@ -237,4 +229,5 @@ def main():
 
 if __name__ == '__main__':
     config, device, logger, vdl_writer = program.preprocess()
+        
     main()

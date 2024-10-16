@@ -12,12 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
 import os
-import sys
 import platform
 import yaml
 import time
@@ -25,151 +25,15 @@ import datetime
 import paddle
 import paddle.distributed as dist
 from tqdm import tqdm
-from argparse import ArgumentParser, RawDescriptionHelpFormatter
-
 from ppocr.utils.stats import TrainingStats
 from ppocr.utils.save_load import save_model
 from ppocr.utils.utility import print_dict, AverageMeter
 from ppocr.utils.logging import get_logger
+
 from ppocr.utils.loggers import VDLLogger, WandbLogger, Loggers
 from ppocr.utils import profiler
 from ppocr.data import build_dataloader
-
-
-class ArgsParser(ArgumentParser):
-    def __init__(self):
-        super(ArgsParser, self).__init__(
-            formatter_class=RawDescriptionHelpFormatter)
-        self.add_argument("-c", "--config", help="configuration file to use")
-        self.add_argument(
-            "-o", "--opt", nargs='+', help="set configuration options")
-        self.add_argument(
-            '-p',
-            '--profiler_options',
-            type=str,
-            default=None,
-            help='The option of profiler, which should be in format ' \
-                 '\"key1=value1;key2=value2;key3=value3\".'
-        )
-
-    def parse_args(self, argv=None):
-        args = super(ArgsParser, self).parse_args(argv)
-        assert args.config is not None, \
-            "Please specify --config=configure_file_path."
-        args.opt = self._parse_opt(args.opt)
-        return args
-
-    def _parse_opt(self, opts):
-        config = {}
-        if not opts:
-            return config
-        for s in opts:
-            s = s.strip()
-            k, v = s.split('=')
-            config[k] = yaml.load(v, Loader=yaml.Loader)
-        return config
-
-
-def load_config(file_path):
-    """
-    Load config from yml/yaml file.
-    Args:
-        file_path (str): Path of the config file to be loaded.
-    Returns: global config
-    """
-    _, ext = os.path.splitext(file_path)
-
-    assert ext in ['.yml', '.yaml'], "only support yaml files for now"
-    config = yaml.load(open(file_path, 'rb'), Loader=yaml.Loader)
-    return config
-
-
-def merge_config(config, opts):
-    """
-    Merge config into global config.
-    Args:
-        config (dict): Config to be merged.
-    Returns: global config
-    """
-    for key, value in opts.items():
-        if "." not in key:
-            if isinstance(value, dict) and key in config:
-                config[key].update(value)
-            else:
-                config[key] = value
-        else:
-            sub_keys = key.split('.')
-            assert (
-                sub_keys[0] in config
-            ), "the sub_keys can only be one of global_config: {}, but get: " \
-               "{}, please check your running command".format(
-                config.keys(), sub_keys[0])
-            cur = config[sub_keys[0]]
-            for idx, sub_key in enumerate(sub_keys[1:]):
-                if idx == len(sub_keys) - 2:
-                    cur[sub_key] = value
-                else:
-                    cur = cur[sub_key]
-    return config
-
-
-def check_device(use_gpu, use_xpu=False, use_npu=False, use_mlu=False):
-    """
-    Log error and exit when set use_gpu=true in paddlepaddle
-    cpu version.
-    """
-    err = "Config {} cannot be set as true while your paddle " \
-          "is not compiled with {} ! \nPlease try: \n" \
-          "\t1. Install paddlepaddle to run model on {} \n" \
-          "\t2. Set {} as false in config file to run " \
-          "model on CPU"
-
-    try:
-        if use_gpu and use_xpu:
-            print("use_xpu and use_gpu can not both be ture.")
-        if use_gpu and not paddle.is_compiled_with_cuda():
-            print(err.format("use_gpu", "cuda", "gpu", "use_gpu"))
-            sys.exit(1)
-        if use_xpu and not paddle.device.is_compiled_with_xpu():
-            print(err.format("use_xpu", "xpu", "xpu", "use_xpu"))
-            sys.exit(1)
-        if use_npu:
-            if int(paddle.version.major) != 0 and int(
-                    paddle.version.major) <= 2 and int(
-                        paddle.version.minor) <= 4:
-                if not paddle.device.is_compiled_with_npu():
-                    print(err.format("use_npu", "npu", "npu", "use_npu"))
-                    sys.exit(1)
-            # is_compiled_with_npu() has been updated after paddle-2.4
-            else:
-                if not paddle.device.is_compiled_with_custom_device("npu"):
-                    print(err.format("use_npu", "npu", "npu", "use_npu"))
-                    sys.exit(1)
-        if use_mlu and not paddle.device.is_compiled_with_mlu():
-            print(err.format("use_mlu", "mlu", "mlu", "use_mlu"))
-            sys.exit(1)
-    except Exception as e:
-        pass
-
-
-def to_float32(preds):
-    if isinstance(preds, dict):
-        for k in preds:
-            if isinstance(preds[k], dict) or isinstance(preds[k], list):
-                preds[k] = to_float32(preds[k])
-            elif isinstance(preds[k], paddle.Tensor):
-                preds[k] = preds[k].astype(paddle.float32)
-    elif isinstance(preds, list):
-        for k in range(len(preds)):
-            if isinstance(preds[k], dict):
-                preds[k] = to_float32(preds[k])
-            elif isinstance(preds[k], list):
-                preds[k] = to_float32(preds[k])
-            elif isinstance(preds[k], paddle.Tensor):
-                preds[k] = preds[k].astype(paddle.float32)
-    elif isinstance(preds, paddle.Tensor):
-        preds = preds.astype(paddle.float32)
-    return preds
+from tools.program_origin import ArgsParser, load_config, merge_config, check_device, to_float32
 
 
 def train(config,
@@ -191,8 +55,7 @@ def train(config,
           amp_custom_white_list=[],
           amp_dtype='float16'):
 
-    cal_metric_during_train = config['Global'].get('cal_metric_during_train',
-                                                   False)
+    cal_metric_during_train = config['Global'].get('cal_metric_during_train', False)
     calc_epoch_interval = config['Global'].get('calc_epoch_interval', 1)
     log_smooth_window = config['Global']['log_smooth_window']
     epoch_num = config['Global']['epoch_num']
@@ -246,6 +109,9 @@ def train(config,
         model_type = None
 
     algorithm = config['Architecture']['algorithm']
+    
+    
+    
 
     start_epoch = best_model_dict[
         'start_epoch'] if 'start_epoch' in best_model_dict else 1
@@ -263,14 +129,19 @@ def train(config,
     # print(lr_scheduler.base_lr)
     # exit()
     
+    x = train_dataloader.dataset[0]
+    
     for epoch in range(start_epoch, epoch_num + 1):
+        
         if train_dataloader.dataset.need_reset:
             train_dataloader = build_dataloader(
                 config, 'Train', device, logger, seed=epoch)
             max_iter = len(train_dataloader) - 1 if platform.system(
             ) == "Windows" else len(train_dataloader)
-        for idx, batch in enumerate(train_dataloader):
 
+        for idx, batch in enumerate(train_dataloader):
+            # print(batch["label"])
+            # exit()
             profiler.add_profiler_step(profiler_options)
             train_reader_cost += time.time() - reader_start
             if idx >= max_iter:
@@ -288,11 +159,6 @@ def train(config,
                         dtype=amp_dtype):
                     if model_type == 'table' or extra_input:
                         preds = model(images, data=batch[1:])
-                        
-                    elif model_type in ["kie"]:
-                        preds = model(batch)
-                    elif algorithm in ['CAN']:
-                        preds = model(batch[:3])
                     else:
                         preds = model(images)
                 preds = to_float32(preds)
@@ -303,166 +169,66 @@ def train(config,
                 scaler.minimize(optimizer, scaled_avg_loss)
             else:
                 if model_type == 'table' or extra_input: # 현재 사용하는 rec는 extra_input이 있음
-                    
-                    # preds = preds["first"]
-                    # x = batch["first_label"]
-                    # del batch["first_label"]
-                    # batch.update(x)
-                    
-                    # print(batch.keys())
-                    # exit()
                     preds = model(images, data=batch)
-                    # x = preds["first"]
-                    # del preds["first"]
-                    # preds.update(x)
-                    
-                elif model_type in ["kie", 'sr']:
-                    preds = model(batch)
-                elif algorithm in ['CAN']:
-                    preds = model(batch[:3])
                 else:
-
                     preds = model(images)             # 현재 DB 알고리즘 사용 중  
-                    
-                
-                # print(preds)
-                # len(batch)    : 5
-                # type(batch)   : list
-                # type(batch[0]): <class 'paddle.Tensor'>
-                # type(batch[0]): <class 'paddle.Tensor'>
-                # batch[0].shape: [2, 3, 640, 640] 2는 배치 사이즈
-                # batch[1].shape: [2, 640, 640] (dtype = paddle.float32)
-                # batch[2].shape: [2, 640, 640] (dtype = paddle.float32)
-                # batch[3].shape: [2, 640, 640] (dtype = paddle.float32)
-                # batch[4].shape: [2, 640, 640] (dtype = paddle.float32)
-                 
-                # len(preds)  : 1
-                # type(preds) : dict
-                # preds.keys(): dict_keys(['maps'])
-                # type(preds['maps']): <class 'paddle.Tensor'>
-                # preds['maps'].shape: [2, 3, 640, 640] 맨 앞에 2은 배치 사이즈
-                
-                # 코드를 보며 알게된 사실은
-                # batch[1:]에 4개의 텐서는 각각
-                # label_threshold_map, label_threshold_mask, label_shrink_map, label_shrink_mask 이다.
-                """
-                    코드를 분석한 결과 
-                    다양한 Detection 알고리즘이 있으며 이를 모두 커버하기 위해
-                    Dataloader가 각 알고리즘에서 사용되는 모든 형태의 데이터를 반환하고
-                    코드는 설정된 알고리즘에 따라 필요한 형태의 데이터만 추출하여 사용하고 있음
-                    다양한 기능을 지원하는 경우에는 이처럼 데이터를 요구되는 다양한 형태로 일단 제공하고
-                    뒤에서 옵션에 따라 알아서 선택해서 사용하게 하는 이 방식이 매우 좋은 것 같음
-                """
-                # with open("/home/label_threshold_map.txt", "w") as f:
-                #     f.write(str(batch[1].numpy()))
-                # with open("/home/label_threshold_mask .txt", "w") as f:
-                #     f.write(str(batch[2].numpy()))
-                # with open("/home/label_shrink_map.txt", "w") as f:
-                #     f.write(str(batch[3].numpy()))
-                # with open() as f:
-                #     f.write(str())
-                
-                    
-                # from PIL import Image   
-                # print((batch[1][0].numpy()*255).astype(np.uint8).shape)             
-                # Image.fromarray((batch[1][0].numpy()*255).astype(np.uint8)).save("/home/label_threshold_map.png")
-                # Image.fromarray((batch[2][0].numpy()*255).astype(np.uint8)).save("/home/label_threshold_mask.png")
-                # Image.fromarray((batch[3][0].numpy()*255).astype(np.uint8)).save("/home/label_shrink_map.png")
-                # Image.fromarray((batch[4][0].numpy()*255).astype(np.uint8)).save("/home/label_shrink_mask.png")
-                # print("###")
-                # # exit()
-                # print(type(preds))
-                # print(preds.keys())
-                
 
-                
-                
+
+
                 loss = loss_class(preds, batch)
+                
                 avg_loss = loss['loss']
-                # avg_loss = preds["origin"]["ctc"].sum()
-                # loss["test"] = avg_loss
 
                 avg_loss.backward()
                 optimizer.step()
-                
             
             optimizer.clear_grad()
+            """
+                preds = {"model_type":Tensor(shape=[N, L, C])}
+                ex) {"vision":Tensor(shape=[512, 26, 1872]), "lang1":Tensor(shape=[512, 26, 1872]), "align1":Tensor(shape=[512, 26, 1872])}
+            """
+
             
             if cal_metric_during_train and epoch % calc_epoch_interval == 0:  # only rec and cls need (True)
-                if "use_grapheme" in config['Global'] and config['Global']["use_grapheme"]:
-                    for k, v in batch.items():
-                        if isinstance(v, list):
-                            continue
-                        elif isinstance(v, dict):
-                            batch[k] = {k:_v.numpy() for k, _v in v.items()}
-                        else:
-                            batch[k] = v.numpy()
 
-                    if model_type in ['kie', 'sr']:
-                        eval_class(preds, batch)
-                    elif model_type in ['table']:
-                        post_result = post_process_class(preds, batch)
-                        eval_class(post_result, batch)
-                    elif algorithm in ['CAN']:
-                        model_type = 'can'
-                        eval_class(preds[0], batch[2:], epoch_reset=(idx == 0))
-                    else: # True
-                        if config['Loss']['name'] in ['MultiLoss', 'MultiLoss_Grapheme']:  # for multi head loss (True)                            
-                            preds_args = {name: (preds[name]["ctc"] if name in preds else None) for name in  config["Global"]["grapheme"]}
-                            labels_args = {f"{name}_label": batch[f"{name}_label"]["label_ctc"] for name in  config["Global"]["grapheme"]}
-                            post_result = post_process_class(
-                                preds_args, labels_args)  # for CTC head out
-                        elif config['Loss']['name'] in ['VLLoss']:
-                            post_result = post_process_class(preds, batch[1],
-                                                            batch[-1])
-                        else:
-                            post_result = post_process_class(preds, batch[1])
-                            
-                        eval_class(post_result, batch)
+                # for k, v in batch.items():
+                #     if isinstance(v, list):
+                #         continue
+                #     elif isinstance(v, dict):
+                #         batch[k] = {k:_v.numpy() for k, _v in v.items()}
+                #     else:
+                #         batch[k] = v.numpy()
+                
+                if config['Loss']['name'] in ['MultiLoss', 'MultiLoss_Grapheme']:  # for multi head loss (True) 
+                    preds_args = {name: (preds[name]["ctc"] if name in preds else None) for name in  config["Global"]["grapheme"]}
+                    labels_args = {f"{name}_label": batch[f"{name}_label"]["label_ctc"] for name in  config["Global"]["grapheme"]}
                     
-                    metric = eval_class.get_metric()
-                    train_stats.update(metric)
-                    
-                    
+                    post_result = post_process_class(preds_args, labels_args)  # for CTC head out
                 else:
-                    for k, v in batch.items():
-                        if isinstance(v, list):
-                            continue
-                        elif isinstance(v, dict):
-                            batch[k] = {k:_v.numpy() for k, _v in v.items()}
-                        else:
-                            batch[k] = v.numpy()
-                    # batch = [item.numpy() for item in batch]
-                    # exit()
-                    # # print(len(batch))
-                    # batch[0] = batch[0].numpy()
-                    # print(batch[1])
-                    # batch[1] = {k:v.numpy() for k, v in batch[1].items()}
-                    # batch[2] = {k:v.numpy() for k, v in batch[2].items()}
-                    # batch[3] = {k:v.numpy() for k, v in batch[3].items()}
-                    # batch[4] = batch[4].numpy()
-                    # print(batch[1].keys())
-                    # exit()
-                    if model_type in ['kie', 'sr']:
-                        eval_class(preds, batch)
-                    elif model_type in ['table']:
-                        post_result = post_process_class(preds, batch)
-                        eval_class(post_result, batch)
-                    elif algorithm in ['CAN']:
-                        model_type = 'can'
-                        eval_class(preds[0], batch[2:], epoch_reset=(idx == 0))
-                    else: # True
-                        if config['Loss']['name'] in ['MultiLoss', 'MultiLoss_v2']:  # for multi head loss (True)
-                            
-                            post_result = post_process_class(preds['ctc'], batch["label_ctc"])  # for CTC head out
-                        elif config['Loss']['name'] in ['VLLoss']:
-                            post_result = post_process_class(preds, batch[1],
-                                                            batch[-1])
-                        else:
-                            post_result = post_process_class(preds, batch["label"])
-                        eval_class(post_result, batch)
-                    metric = eval_class.get_metric()
-                    train_stats.update(metric)
+                    post_result = post_process_class(preds, batch["label"])
+                # print(post_result)
+                # exit()
+                """
+                    post_result = {model_type: [preds], ...}      model_type = ["vision", "lang", "align"]
+                    preds = {"pred_type": [pred, label], ...}       pred_type = ["character", "initial", "medial", "final"]
+                    pred = [(pred_text, pred_score), ...]
+                    label = [(label_text, label_score), ...]
+                """                
+
+                # print(post_result.keys())
+                # print(post_result["vision"].keys())
+                # print(post_result["vision"]["character"])
+                # exit()
+
+
+            
+                eval_class(post_result, batch)
+                
+                metric = eval_class.get_metric()
+
+                train_stats.update(metric)
+                
+            
         
             train_batch_time = time.time() - reader_start
             train_batch_cost += train_batch_time
@@ -473,17 +239,9 @@ def train(config,
             if not isinstance(lr_scheduler, float):
                 lr_scheduler.step()
 
-            # logger and visualdl
+
+            stats = {k: float(v) for k, v in loss.items()} # 출력을 위해 Tensor -> float
             
-            
-            for grapheme in config["Global"].get("handling_grapheme", []):
-                loss[f"{grapheme}_CTCLoss"] = loss[grapheme]["CTCLoss"]
-                loss[f"{grapheme}_SARLoss"] = loss[grapheme]["SARLoss"]
-                del loss[grapheme]
-            stats = {
-                k: float(v) if v.shape == [] else v.numpy().mean()
-                for k, v in loss.items()
-            }
             stats['lr'] = lr
             train_stats.update(stats)
 
@@ -492,8 +250,10 @@ def train(config,
                     metrics=train_stats.get(), prefix="TRAIN", step=global_step)
 
             if dist.get_rank() == 0 and (
-                (global_step > 0 and global_step % print_batch_step == 0) or
-                (idx >= len(train_dataloader) - 1)):
+                (global_step > 0 and global_step % print_batch_step == 0)
+                or (idx >= len(train_dataloader) - 1)
+                ): # 첫 프로세스에서만 출력 시점 batch거나 마지막 batch일 때
+                
                 logs = train_stats.log()
 
                 eta_sec = ((epoch_num + 1 - epoch) * \
@@ -513,9 +273,7 @@ def train(config,
                 train_reader_cost = 0.0
                 train_batch_cost = 0.0
             # eval
-            if global_step > start_eval_step and \
-                    (global_step - start_eval_step) % eval_batch_step == 0 \
-                    and dist.get_rank() == 0:
+            if (global_step > start_eval_step) and ((global_step - start_eval_step) % eval_batch_step == 0) and (dist.get_rank() == 0):
                 if model_average:
                     Model_Average = paddle.incubate.optimizer.ModelAverage(
                         0.15,
@@ -523,6 +281,7 @@ def train(config,
                         min_average_window=10000,
                         max_average_window=15625)
                     Model_Average.apply()
+                    
                 cur_metric = eval(
                     model,
                     valid_dataloader,
@@ -536,14 +295,13 @@ def train(config,
                     amp_custom_black_list=amp_custom_black_list,
                     amp_custom_white_list=amp_custom_white_list,
                     amp_dtype=amp_dtype)
-                cur_metric_str = 'cur metric, {}'.format(', '.join(
-                    ['{}: {}'.format(k, v) for k, v in cur_metric.items()]))
+                
+                cur_metric_str = 'cur metric, {}'.format(', '.join(['{}: {}'.format(k, v) for k, v in cur_metric.items()]))
                 logger.info(cur_metric_str)
 
                 # logger metric
                 if log_writer is not None:
-                    log_writer.log_metrics(
-                        metrics=cur_metric, prefix="EVAL", step=global_step)
+                    log_writer.log_metrics(metrics=cur_metric, prefix="EVAL", step=global_step)
 
                 if cur_metric[main_indicator] >= best_model_dict[main_indicator]:
                     best_model_dict.update(cur_metric)
@@ -566,13 +324,9 @@ def train(config,
                 # logger best metric
                 if log_writer is not None:
                     log_writer.log_metrics(
-                        metrics={
-                            "best_{}".format(main_indicator):
-                            best_model_dict[main_indicator]
-                        },
+                        metrics={"best_{}".format(main_indicator):best_model_dict[main_indicator]},
                         prefix="EVAL",
                         step=global_step)
-
                     log_writer.log_model(
                         is_best=True,
                         prefix="best_accuracy",
@@ -597,7 +351,7 @@ def train(config,
             if log_writer is not None:
                 log_writer.log_model(is_best=False, prefix="latest")
 
-        if dist.get_rank() == 0 and epoch > 0 and epoch % save_epoch_step == 0:
+        if dist.get_rank() == 0 and epoch > 0 and (epoch <= 10 or epoch % save_epoch_step == 0):
             save_model(
                 model,
                 optimizer,
@@ -633,7 +387,10 @@ def eval(model,
          amp_custom_black_list=[],
          amp_custom_white_list=[],
          amp_dtype='float16'):
+
+    
     model.eval()
+    
     with paddle.no_grad():
         total_frame = 0.0
         total_time = 0.0
@@ -642,91 +399,56 @@ def eval(model,
             desc='eval model:',
             position=0,
             leave=True)
-        max_iter = len(valid_dataloader) - 1 if platform.system(
-        ) == "Windows" else len(valid_dataloader)
+        
+        max_iter = len(valid_dataloader) - 1 if platform.system() == "Windows" else len(valid_dataloader) # 윈도우에서는 마지막 배치 건너뜀
         sum_images = 0
         for idx, batch in enumerate(valid_dataloader):
-            
-            if idx >= max_iter:
-                break
-            images = batch["image"]
+            """_summary_
+                Args:
+                    batch (dict): _description_
+                    {
+                        img_path: [<str>, ...]
+                        label: {character: Tensor(shape=[N, C]), initial: Tensor(shape=[N, C]), ...} ..........C = class num
+                        image: Tensor(shape=[N, C, H, W])
+                        ext_data: []
+                        origin_label: [<str>, ...]
+                        valid_ratio: Tensor(shape=[N])                
+                    }
+            """
+            if idx >= max_iter: break
             start = time.time()
-
-            # use amp
-            if scaler:
-                with paddle.amp.auto_cast(
-                        level=amp_level,
-                        custom_black_list=amp_custom_black_list,
-                        dtype=amp_dtype):
-                    if model_type == 'table' or extra_input:
-                        preds = model(images, data=batch[1:])
-                    elif model_type in ["kie"]:
-                        preds = model(batch)
-                    elif model_type in ['can']:
-                        preds = model(batch[:3])
-                    elif model_type in ['sr']:
-                        preds = model(batch)
-                        sr_img = preds["sr_img"]
-                        lr_img = preds["lr_img"]
-                    else:
-                        preds = model(images)
-                preds = to_float32(preds)
-            else:
-                if model_type == 'table' or extra_input:
-                    preds = model(images, data=batch)
-                elif model_type in ["kie"]:
-                    preds = model(batch)
-                elif model_type in ['can']:
-                    preds = model(batch[:3])
-                elif model_type in ['sr']:
-                    preds = model(batch)
-                    sr_img = preds["sr_img"]
-                    lr_img = preds["lr_img"]
-                else:
-                    preds = model(images)
-            # batch_numpy = []
-            # for item in batch:
-            #     if isinstance(item, paddle.Tensor):
-            #         batch_numpy.append(item.numpy())
+            
+            images = batch["image"]
+        
+            preds = model(images)
+            """
+                preds = {"model_type":Tensor(shape=[N, L, C])}
+                ex) {"vision":Tensor(shape=[512, 26, 1872]), "lang":Tensor(shape=[512, 26, 1872]), "align":Tensor(shape=[512, 26, 1872])}
+            """
+            
+            # for k, v in batch.items():                
+            #     if isinstance(v, list):
+            #         continue
+            #     elif isinstance(v, dict):
+            #         batch[k] = {k:_v.numpy() for k, _v in v.items()}
             #     else:
-            #         batch_numpy.append(item)
-            for k, v in batch.items():
-                if isinstance(v, list):
-                    continue
-                elif isinstance(v, dict):
-                    batch[k] = {k:_v.numpy() for k, _v in v.items()}
-                else:
-                    batch[k] = v.numpy()
-            batch_numpy = batch
+            #         batch[k] = v.numpy()
+                
+            # batch_numpy = batch
             # Obtain usable results from post-processing methods
             total_time += time.time() - start
-            # Evaluate the results of the current batch
-            if model_type in ['table', 'kie']:
-                if post_process_class is None:
-                    eval_class(preds, batch_numpy)
-                else:
-                    preds_args = {name: preds[name]["ctc"] for name in  config["Global"]["handling_grapheme"]}
-                    labels_args = {f"{name}_label": batch[f"{name}_label"]["label_ctc"] for name in  config["Global"]["handling_grapheme"]}
-                    post_result = post_process_class(preds_args, labels_args)
-                    eval_class(post_result, batch_numpy)
-            elif model_type in ['sr']:
-                eval_class(preds, batch_numpy)
-            elif model_type in ['can']:
-                eval_class(preds[0], batch_numpy[2:], epoch_reset=(idx == 0))
-            else:
-                # preds_args = {name: preds[name]["ctc"] for name in config["Global"]["handling_grapheme"]}
-                # labels_args = {f"{name}_label": batch[f"{name}_label"]["label_ctc"] for name in config["Global"]["handling_grapheme"]}
-                if "grapheme" in config["Global"]:
-                    preds_args = {name: preds.get(name, None) for name in config["Global"]["grapheme"]}
-                    labels_args = {f"{name}_label": batch[f"{name}_label"]["label_ctc"] for name in config["Global"]["grapheme"]}
-                    
-                    post_result = post_process_class(preds_args, labels_args)
 
-                else:
-                    post_result = post_process_class(preds, batch["label"])
-                # print(f"post_result: {batch_numpy}")
+            if config["Architecture"]["algorithm"] == "SVTR_LCNet":  
+                labels_args = {f"{name}_label": batch[f"{name}_label"]["label_ctc"] for name in  config["Global"]["grapheme"]}
+                post_result = post_process_class(preds, labels_args)                
+            else:
+                post_result = post_process_class(preds, batch["label"])
             
-                eval_class(post_result, batch_numpy)
+            # print(post_result["vision"]["initial"])
+            # print(post_result["vision"]["medial"])
+            # print(post_result["vision"]["final"])
+            # exit()
+            eval_class(post_result, batch)
 
             pbar.update(1)
             total_frame += len(images)
@@ -791,9 +513,11 @@ def get_center(model, eval_dataloader, post_process_class):
 
 def preprocess(is_train=False):
     FLAGS = ArgsParser().parse_args()
+
     profiler_options = FLAGS.profiler_options
     config = load_config(FLAGS.config)
     config = merge_config(config, FLAGS.opt)
+
     profile_dic = {"profiler_options": FLAGS.profiler_options}
     config = merge_config(config, profile_dic)
 
@@ -808,9 +532,10 @@ def preprocess(is_train=False):
         log_file = '{}/train.log'.format(save_model_dir)
     else:
         log_file = None
-
+    
+    
     logger = get_logger(log_file=log_file)
-
+    
     # check if set use_gpu=True in paddlepaddle cpu version
     use_gpu = config['Global'].get('use_gpu', False)
     use_xpu = config['Global'].get('use_xpu', False)
@@ -819,12 +544,13 @@ def preprocess(is_train=False):
 
     alg = config['Architecture']['algorithm']
     assert alg in [
-        'EAST', 'DB', 'SAST', 'Rosetta', 'CRNN', 'STARNet', 'RARE', 'SRN',
-        'CLS', 'PGNet', 'Distillation', 'NRTR', 'TableAttn', 'SAR', 'PSE',
-        'SEED', 'SDMGR', 'LayoutXLM', 'LayoutLM', 'LayoutLMv2', 'PREN', 'FCE',
-        'SVTR', 'SVTR_LCNet', 'ViTSTR', 'ABINet', 'DB++', 'TableMaster', 'SPIN',
-        'VisionLAN', 'Gestalt', 'SLANet', 'RobustScanner', 'CT', 'RFL', 'DRRG',
-        'CAN', 'Telescope', 'SATRN', 'SVTR_HGNet'
+        # 'EAST', 'DB', 'SAST', 'Rosetta', 'CRNN', 'STARNet', 'RARE', 'SRN',
+        # 'CLS', 'PGNet', 'Distillation', 'NRTR', 'TableAttn', 'SAR', 'PSE',
+        # 'SEED', 'SDMGR', 'LayoutXLM', 'LayoutLM', 'LayoutLMv2', 'PREN', 'FCE',
+        # 'SVTR', 'SVTR_LCNet', 'ViTSTR', 'ABINet', 'DB++', 'TableMaster', 'SPIN',
+        # 'VisionLAN', 'Gestalt', 'SLANet', 'RobustScanner', 'CT', 'RFL', 'DRRG',
+        # 'CAN', 'Telescope', 'SATRN', 'SVTR_HGNet', 
+        "ABINet_Grapheme", "SVTR_GraphemeLabel"
     ]
 
     if use_xpu:
