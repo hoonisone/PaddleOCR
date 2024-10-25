@@ -1614,6 +1614,13 @@ class ABINetLabelEncode_GraphemeLabel(object):
                                     use_space_char=use_space_char, 
                                     ignore_index=ignore_index,
                                     use_unkown = True)
+            
+        if "utf8string" in handling_grapheme:
+            self.encoder_dict["utf8string"] = ABINetLabelEncode(max_text_length=max_text_length, 
+                                    character_dict_path=character_dict_path["utf8string"], 
+                                    use_space_char=use_space_char, 
+                                    ignore_index=ignore_index,
+                                    use_unkown = True)
 
     def __call__(self, data):
         data_out = dict()
@@ -1628,7 +1635,7 @@ class ABINetLabelEncode_GraphemeLabel(object):
             
         data["label"] = data_out
         data["length"] = length_out
-        
+    
         return data
 
 class SRLabelEncode(BaseRecLabelEncode):

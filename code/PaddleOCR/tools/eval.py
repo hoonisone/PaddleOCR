@@ -62,54 +62,56 @@ def main():
     # build post process
     post_process_class = build_post_process(config['PostProcess'], global_config)
     
+    config["Global"]["char_num"] = post_process_class.char_num # 기본적으로 int 값이나 Grapheme 알고리즘에서는 dict이다. {grapheme: num}
+    config["Architecture"]["Head"]["out_channels"] = post_process_class.char_num
     # build model
     # for rec algorithm
-    if config['PostProcess']["name"] in ["ABINetLabelDecode_GraphemeLabel", "ABINetLabelDecode_GraphemeLabel_B", "ABINetLabelDecode_GraphemeLabel_All"]:
-        class_num_dict = post_process_class.class_num_dict
-        config["Global"]["class_num_dict"] = class_num_dict
+    # if config['PostProcess']["name"] in ["ABINetLabelDecode_GraphemeLabel", "ABINetLabelDecode_GraphemeLabel_B", "ABINetLabelDecode_GraphemeLabel_All"]:
+    #     class_num_dict = post_process_class.class_num_dict
+    #     config["Global"]["class_num_dict"] = class_num_dict
         
-    if hasattr(post_process_class, 'character'):
-        character = getattr(post_process_class, 'character')
-        if "use_grapheme" in global_config and global_config["use_grapheme"]:    
-            char_num= np.array([len(character[grapheme]) for grapheme in global_config["handling_grapheme"]])
-            # char_num = np.array([len(x) for x in character])
+    # if hasattr(post_process_class, 'character'):
+    #     character = getattr(post_process_class, 'character')
+    #     if "use_grapheme" in global_config and global_config["use_grapheme"]:    
+    #         char_num= np.array([len(character[grapheme]) for grapheme in global_config["handling_grapheme"]])
+    #         # char_num = np.array([len(x) for x in character])
 
-        else:
-            char_num = len(character)
-        if config['Architecture']["algorithm"] in ["Distillation",
-                                                   ]:  # distillation model
-            for key in config['Architecture']["Models"]:
-                if config['Architecture']['Models'][key]['Head'][
-                        'name'] == 'MultiHead':  # for multi head
-                    out_channels_list = {}
-                    if config['PostProcess'][
-                            'name'] == 'DistillationSARLabelDecode':
-                        char_num = char_num - 2
-                    if config['PostProcess'][
-                            'name'] == 'DistillationNRTRLabelDecode':
-                        char_num = char_num - 3
-                    out_channels_list['CTCLabelDecode'] = char_num
-                    out_channels_list['SARLabelDecode'] = char_num + 2
-                    out_channels_list['NRTRLabelDecode'] = char_num + 3
-                    config['Architecture']['Models'][key]['Head'][
-                        'out_channels_list'] = out_channels_list
-                else:
-                    config['Architecture']["Models"][key]["Head"][
-                        'out_channels'] = char_num
-        elif config['Architecture']['Head'][
-                'name']  in  ['MultiHead', 'MultiHead_Grapheme']:  # for multi head
-            out_channels_list = {}
-            if config['PostProcess']['name'] == 'SARLabelDecode':
-                char_num = char_num - 2
-            if config['PostProcess']['name'] == 'NRTRLabelDecode':
-                char_num = char_num - 3
-            out_channels_list['CTCLabelDecode'] = char_num
-            out_channels_list['SARLabelDecode'] = char_num + 2
-            out_channels_list['NRTRLabelDecode'] = char_num + 3
-            config['Architecture']['Head'][
-                'out_channels_list'] = out_channels_list
-        else:  # base rec model
-            config['Architecture']["Head"]['out_channels'] = char_num
+    #     else:
+    #         char_num = len(character)
+    #     if config['Architecture']["algorithm"] in ["Distillation",
+    #                                                ]:  # distillation model
+    #         for key in config['Architecture']["Models"]:
+    #             if config['Architecture']['Models'][key]['Head'][
+    #                     'name'] == 'MultiHead':  # for multi head
+    #                 out_channels_list = {}
+    #                 if config['PostProcess'][
+    #                         'name'] == 'DistillationSARLabelDecode':
+    #                     char_num = char_num - 2
+    #                 if config['PostProcess'][
+    #                         'name'] == 'DistillationNRTRLabelDecode':
+    #                     char_num = char_num - 3
+    #                 out_channels_list['CTCLabelDecode'] = char_num
+    #                 out_channels_list['SARLabelDecode'] = char_num + 2
+    #                 out_channels_list['NRTRLabelDecode'] = char_num + 3
+    #                 config['Architecture']['Models'][key]['Head'][
+    #                     'out_channels_list'] = out_channels_list
+    #             else:
+    #                 config['Architecture']["Models"][key]["Head"][
+    #                     'out_channels'] = char_num
+    #     elif config['Architecture']['Head'][
+    #             'name']  in  ['MultiHead', 'MultiHead_Grapheme']:  # for multi head
+    #         out_channels_list = {}
+    #         if config['PostProcess']['name'] == 'SARLabelDecode':
+    #             char_num = char_num - 2
+    #         if config['PostProcess']['name'] == 'NRTRLabelDecode':
+    #             char_num = char_num - 3
+    #         out_channels_list['CTCLabelDecode'] = char_num
+    #         out_channels_list['SARLabelDecode'] = char_num + 2
+    #         out_channels_list['NRTRLabelDecode'] = char_num + 3
+    #         config['Architecture']['Head'][
+    #             'out_channels_list'] = out_channels_list
+    #     else:  # base rec model
+    #         config['Architecture']["Head"]['out_channels'] = char_num
 
     model = build_model(config['Architecture'], **global_config)
     extra_input_models = [
@@ -135,6 +137,8 @@ def main():
     eval_class = build_metric(config['Metric'], **global_config)
     # amp
     use_amp = config["Global"].get("use_amp", False)
+    use_amp = False # 평가모드에서는 안쓸 예정
+    
     amp_level = config["Global"].get("amp_level", 'O2')
     amp_custom_black_list = config['Global'].get('amp_custom_black_list', [])
     if use_amp:

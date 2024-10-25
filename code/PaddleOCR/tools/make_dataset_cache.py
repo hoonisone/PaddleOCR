@@ -83,9 +83,12 @@ def sub_task(dataset, cache, idx_list, worker_num):
     
     cache.close_hdf5()
     for sample in tqdm.tqdm(shared_list):
-        key = sample["img_path"]
-        cache.save_samples_to_hdf5(sample, key)
-        
+        try:
+            key = sample["img_path"]
+            cache.save_samples_to_hdf5(sample, key)
+        except Exception as e:
+            print(e)
+            continue
         
 
 def main(config, device, logger, vdl_writer):
@@ -101,13 +104,17 @@ def main(config, device, logger, vdl_writer):
 
     
     # config["Eval"]["dataset"]["transforms_uncachiable"] = []
+    # train_dataset = build_dataloader(config, 'Eval', device, logger).dataset
+    # train_cache = HDF5PickleStorage(config["Eval"]["dataset"]["cache_file"])
     
     config["Train"]["dataset"]["transforms_uncachiable"] = []
     train_dataset = build_dataloader(config, 'Train', device, logger).dataset
     train_cache = HDF5PickleStorage(config["Train"]["dataset"]["cache_file"])
     
-    for i in range(0, len(train_dataset)//100000+1):    
-        sub_task(train_dataset, train_cache, range(100000*i, 100000*(i+1)), worker_num=30)
+    
+    size = len(train_dataset)
+    for i in range(0, size//100000+1):    
+        sub_task(train_dataset, train_cache, range(100000*i, min(100000*(i+1), size)), worker_num=30)
 
         
 

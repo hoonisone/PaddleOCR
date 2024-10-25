@@ -140,8 +140,8 @@ def train(config,
             ) == "Windows" else len(train_dataloader)
 
         for idx, batch in enumerate(train_dataloader):
-            # print(batch["label"])
-            # exit()
+
+            
             profiler.add_profiler_step(profiler_options)
             train_reader_cost += time.time() - reader_start
             if idx >= max_iter:

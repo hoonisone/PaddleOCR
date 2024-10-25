@@ -232,6 +232,7 @@ class WorkDB(DB):
             else:
                 return max([int(path.stem[11:], base=0) for path in files])
         max_list = [get_max(extension) for extension in ["pdparams", "pdopt", "states"]]
+        
         return max(max_list)
     
     def get_all_epoch(self, id):
@@ -243,8 +244,10 @@ class WorkDB(DB):
         return sorted(list(set(sum(max_list, []))))        
     
     def check_weight_exist(self, id, version):
-        epoch_list = self.get_all_epoch(id)
-        return version in epoch_list
+        return Path(self.make_model_weight_path(id, version)).exists()
+        
+        # epoch_list = self.get_all_epoch(id)
+        # return version in epoch_list
                 
     def make_inferenece_model_name(self, version):
         return f"inference_{version}"
@@ -264,7 +267,7 @@ class WorkDB(DB):
         
     
     def make_model_weight_path(self, id, version, relative_to="absolute", extension = "pdparams"):
-        assert (isinstance(version, int) and version > 0) or (isinstance(version, str) and (version in ["best", "latest", "origin"])), version
+        assert (isinstance(version, int) and version > 0) or (isinstance(version, str) and (version in ["best", "latest", "origin", "last"])), version
         
         config = self.get_config(id)
         if version == "best":
@@ -275,6 +278,9 @@ class WorkDB(DB):
             model_config = ModelDB().get_config(config["model"], relative_to=relative_to)
             path = str(model_config["pretrained_model_weight"])
             path = path[:-8]+extension
+        elif version == "last":
+
+            path = self.relative_to(id, Path(config["trained_model_dir"])/f"iter_epoch_{self.get_max_epoch(id)}.{extension}", relative_to=relative_to)
         else:
             path = self.relative_to(id, Path(config["trained_model_dir"])/f"iter_epoch_{version}.{extension}", relative_to=relative_to)
         return path
@@ -345,7 +351,7 @@ class WorkDB(DB):
                     "Global.eval_task":task,
                     "Global.checkpoints":model_weight,
                     "Global.save_model_dir":config["trained_model_dir"],
-
+                    "Global.use_amp":False,
                     "Eval.dataset.data_dir": data_dir,
                     "Eval.dataset.label_file_list":f"""['{"','".join(labelsets)}']""",
                     "Eval.save":save,
@@ -358,9 +364,15 @@ class WorkDB(DB):
             save_path = self.save_relative_to(id, "eval.sh", relative_to=relative_to, save_to=command_to)
             with open(save_path, "a") as f:
                 f.write(command+"\n")    
-            
     
-    def eval_one(self, id, version, task, relative_to="project", command_to="global", report_to="local", check_result=True, check_weight=True, labelsets=None, data_dir=None, save = True):
+    def sort_report_df(self, id):
+        df = self.get_report_df(id)
+        df.sort_values(["task", "version"], inplace=True)
+        self.save_report_df(id, df)
+    
+    def eval_one(self, id, version, task, relative_to="absolute", command_to="global", report_to="local", check_result=True, check_weight=True, labelsets=None, data_dir=None, save = True):
+
+
         item = self.get_report_value(id, version=version, task=task)
         
         if check_result:
@@ -371,6 +383,7 @@ class WorkDB(DB):
             
         if check_weight:
             # weight이 없으면 취소
+            
             if not self.check_weight_exist(id, version):
                 print(f"(id:{id}, version:{version}, task:{task}) has no weight")
                 return
@@ -393,15 +406,15 @@ class WorkDB(DB):
                 "Global.work_id":id,
                 "Global.version":version,
                 "Global.eval_task":task,
-                   "Global.checkpoints":model_weight,
-                   "Global.save_model_dir":config["trained_model_dir"],
-
-                   "Eval.dataset.data_dir": data_dir,
-                   "Eval.dataset.label_file_list":f"""['{"','".join(labelsets)}']""",
-                   "Eval.save":save,
-                   "Eval.check_exist":check_result,
-                   "Eval.dataset.cache_file": config["eval_cache_file"]
-                   }
+                "Global.checkpoints":model_weight,
+                "Global.save_model_dir":config["trained_model_dir"],
+                "Global.use_amp":False,
+                "Eval.dataset.data_dir": data_dir,
+                "Eval.dataset.label_file_list":f"""['{"','".join(labelsets)}']""",
+                "Eval.save":save,
+                "Eval.check_exist":check_result,
+                "Eval.dataset.cache_file": config["eval_cache_file"]
+                }
         
         command = f"python {code} -c {train_config} -o {' '.join([f'{k}={v}' for k, v in options.items()])}"
         print(command)
@@ -492,6 +505,39 @@ class WorkDB(DB):
         # print(command)
         
         save_path = self.save_relative_to(id, "train.sh", relative_to=relative_to, save_to=command_to)
+        with open(save_path, "a") as f:
+            f.write(command+"\n")
+        return True
+
+    def make_datase_cache(self, id, version, epoch, relative_to="project", command_to="global", epoch_check=True):
+        assert relative_to in ["absolute", "project"], f"relative_to should be 'absolute' or 'project' but {relative_to} is given"
+                
+        code = self.get_command_code(id, "make_dataset_cache", relative_to=relative_to)
+        config = self.get_config(id, relative_to="absolute")
+        labelset_configs = [LabelsetDB().get_config(id, relative_to="project") for id in config["labelsets"]]
+
+        train_config = config["train_config"]
+        
+        train_labelsets = sum([c["label"]["train"] for c in labelset_configs], [])
+        eval_labelsets = sum([c["label"]["eval"] for c in labelset_configs], [])
+        test_labelsets = sum([c["label"]["eval"] for c in labelset_configs], [])
+        
+        eval_labelsets += test_labelsets
+        
+        options = {
+                   "Train.dataset.data_dir": labelset_configs[0]["dataset_dir"],
+                   "Train.dataset.label_file_list":f"""['{"','".join(train_labelsets)}']""",
+                   "Train.dataset.cache_file": config["train_cache_file"],
+                   
+                   "Eval.dataset.data_dir": labelset_configs[0]["dataset_dir"],
+                   "Eval.dataset.label_file_list":f"""['{"','".join(eval_labelsets)}']""",
+                   "Eval.dataset.cache_file": config["eval_cache_file"]
+                   }
+        
+        command = f"python {code} -c {train_config} -o {' '.join([f'{k}={v}' for k, v in options.items()])}"
+        # print(command)
+        
+        save_path = self.save_relative_to(id, "make_dataset_cache.sh", relative_to=relative_to, save_to=command_to)
         with open(save_path, "a") as f:
             f.write(command+"\n")
         return True

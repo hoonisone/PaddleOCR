@@ -96,8 +96,11 @@ class ExtractGrapheme(object):
             data["text_label"] = extract_grapheme(data["label"]) # encode 되지 않고 평가 시 사용되는 레이블 (자칭 train_label)
             data["label"] = copy.copy((data["text_label"])) # 추후 encode 되어 loss를 계산할 수 있도록 하는 레이블 (자칭 train_label)
             
+            data["text_label"]["utf8string"] = decompose_hangul_by_utf8(data["text_label"]["character"])
+            data["label"]["utf8string"] = copy.copy(data["text_label"]["utf8string"])
             return data
-        except:
+        except Exception as e:
+            print(e)
             return origin_data
         
 def test_ExtractGrapheme():
@@ -105,3 +108,21 @@ def test_ExtractGrapheme():
     eg = ExtractGrapheme()
     result = eg(data)
     assert result["text_label"] == {'initial': '아나하사아', 'medial': '아여아에요', 'final': '은응으으으', 'character': '안녕하세요'}
+
+
+from ppocr.utils.korean_compose_by_utf8 import decompose_hangul_by_utf8
+class ExtractGrapheme2(object):
+    pass
+    # # ExtractGrapheme 에서 utf 8 extract까지 추가한 버전
+    # def __init__(self, **kwargs):
+    #     self.inner_extractor = ExtractGrapheme()
+    
+    # def __call__(self, data):     
+    #     try:  
+    #         data = self.inner_extractor(data)
+    #         data["text_label"]["utf8string"] = copy.copy(data["text_label"]["character"])
+    #         data["label"]["utf8string"] = decompose_hangul_by_utf8(data["text_label"]["character"])
+    #         return data
+    #     except Exception as e:
+    #         print(e)
+    #         return data

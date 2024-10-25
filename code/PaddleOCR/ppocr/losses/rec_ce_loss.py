@@ -42,6 +42,7 @@ class CELoss_GraphemeLabel(CELoss):
         self.class_num_dict = char_num
         assert loss_weight is not None, "loss_weight_dict should not be None"
         self.loss_weight = loss_weight
+        
 
     def split_grapheme_logits(self, x):
         """ x는 (initial, medial, final) vecter가 concat된 형태
@@ -85,6 +86,7 @@ class CELoss_GraphemeLabel(CELoss):
     
     
     def forward(self, pred, batch):
+        
         """return  = 
         {
             "Vision": {
@@ -101,15 +103,23 @@ class CELoss_GraphemeLabel(CELoss):
         # pred {}
     
         # pred_dict = self.split_pred(pred)
-        
+
         batch_dict = {grapheme: {"label":value} for grapheme, value in batch["label"].items()}
         
         graphemes = self.class_num_dict.keys()
         
         loss_dict = dict()
 
+
+        
+        # exit()
+
         for model, model_preds in pred.items():
             for grapheme in graphemes:
+                # print(grapheme)
+                # print(model_preds.keys())
+                # print(grapheme.keys())
+                # print(batch_dict.keys())
                 loss_dict[f"{model}_{grapheme}"] = super(CELoss_GraphemeLabel, self).forward(model_preds[grapheme], batch_dict[grapheme])["loss"]
 
         

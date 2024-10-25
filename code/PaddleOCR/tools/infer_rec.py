@@ -50,56 +50,61 @@ def main():
     post_process_class = build_post_process(config['PostProcess'],
                                             global_config)
 
-    if config['PostProcess']["name"] in ["ABINetLabelDecode_GraphemeLabel", "ABINetLabelDecode_GraphemeLabel_B", "ABINetLabelDecode_GraphemeLabel_All"]:
-        class_num_dict = post_process_class.class_num_dict
-        config["Global"]["class_num_dict"] = class_num_dict
 
-    # build model
-    if hasattr(post_process_class, 'character'):
-        # char_num = len(getattr(post_process_class, 'character'))
-        character = getattr(post_process_class, 'character')
-        if "use_grapheme" in global_config and global_config["use_grapheme"]:    
-            char_num= np.array([len(character[grapheme]) for grapheme in global_config["handling_grapheme"]])
-            # char_num = np.array([len(x) for x in character])
+    config["Global"]["char_num"] = post_process_class.char_num # 기본적으로 int 값이나 Grapheme 알고리즘에서는 dict이다. {grapheme: num}
+    config["Architecture"]["Head"]["out_channels"] = post_process_class.char_num
+    
+    
+    # if config['PostProcess']["name"] in ["ABINetLabelDecode_GraphemeLabel", "ABINetLabelDecode_GraphemeLabel_B", "ABINetLabelDecode_GraphemeLabel_All"]:
+    #     class_num_dict = post_process_class.class_num_dict
+    #     config["Global"]["class_num_dict"] = class_num_dict
 
-        else:
-            char_num = len(character)
-        if config["Architecture"]["algorithm"] in ["Distillation",
-                                                   ]:  # distillation model
-            for key in config["Architecture"]["Models"]:
-                if config["Architecture"]["Models"][key]["Head"][
-                        "name"] == 'MultiHead':  # multi head
-                    out_channels_list = {}
-                    if config['PostProcess'][
-                            'name'] == 'DistillationSARLabelDecode':
-                        char_num = char_num - 2
-                    if config['PostProcess'][
-                            'name'] == 'DistillationNRTRLabelDecode':
-                        char_num = char_num - 3
-                    out_channels_list['CTCLabelDecode'] = char_num
-                    out_channels_list['SARLabelDecode'] = char_num + 2
-                    out_channels_list['NRTRLabelDecode'] = char_num + 3
-                    config['Architecture']['Models'][key]['Head'][
-                        'out_channels_list'] = out_channels_list
-                else:
-                    config["Architecture"]["Models"][key]["Head"][
-                        "out_channels"] = char_num
-        elif config['Architecture']['Head']['name'] in ['MultiHead', 'MultiHead_Grapheme']:
-            out_channels_list = {}
-            # char_num = len(getattr(post_process_class, 'character'))
-            if config['PostProcess']['name'] == 'SARLabelDecode':
-                char_num = char_num - 2
-            if config['PostProcess']['name'] == 'NRTRLabelDecode':
-                char_num = char_num - 3
-            out_channels_list['CTCLabelDecode'] = char_num
-            out_channels_list['SARLabelDecode'] = char_num + 2
-            out_channels_list['NRTRLabelDecode'] = char_num + 3
-            config['Architecture']['Head'][
-                'out_channels_list'] = out_channels_list
-            # print(out_channels_list)
-            # exit()
-        else:  # base rec model
-            config["Architecture"]["Head"]["out_channels"] = char_num
+    # # build model
+    # if hasattr(post_process_class, 'character'):
+    #     # char_num = len(getattr(post_process_class, 'character'))
+    #     character = getattr(post_process_class, 'character')
+    #     if "use_grapheme" in global_config and global_config["use_grapheme"]:    
+    #         char_num= np.array([len(character[grapheme]) for grapheme in global_config["handling_grapheme"]])
+    #         # char_num = np.array([len(x) for x in character])
+
+    #     else:
+    #         char_num = len(character)
+    #     if config["Architecture"]["algorithm"] in ["Distillation",
+    #                                                ]:  # distillation model
+    #         for key in config["Architecture"]["Models"]:
+    #             if config["Architecture"]["Models"][key]["Head"][
+    #                     "name"] == 'MultiHead':  # multi head
+    #                 out_channels_list = {}
+    #                 if config['PostProcess'][
+    #                         'name'] == 'DistillationSARLabelDecode':
+    #                     char_num = char_num - 2
+    #                 if config['PostProcess'][
+    #                         'name'] == 'DistillationNRTRLabelDecode':
+    #                     char_num = char_num - 3
+    #                 out_channels_list['CTCLabelDecode'] = char_num
+    #                 out_channels_list['SARLabelDecode'] = char_num + 2
+    #                 out_channels_list['NRTRLabelDecode'] = char_num + 3
+    #                 config['Architecture']['Models'][key]['Head'][
+    #                     'out_channels_list'] = out_channels_list
+    #             else:
+    #                 config["Architecture"]["Models"][key]["Head"][
+    #                     "out_channels"] = char_num
+    #     elif config['Architecture']['Head']['name'] in ['MultiHead', 'MultiHead_Grapheme']:
+    #         out_channels_list = {}
+    #         # char_num = len(getattr(post_process_class, 'character'))
+    #         if config['PostProcess']['name'] == 'SARLabelDecode':
+    #             char_num = char_num - 2
+    #         if config['PostProcess']['name'] == 'NRTRLabelDecode':
+    #             char_num = char_num - 3
+    #         out_channels_list['CTCLabelDecode'] = char_num
+    #         out_channels_list['SARLabelDecode'] = char_num + 2
+    #         out_channels_list['NRTRLabelDecode'] = char_num + 3
+    #         config['Architecture']['Head'][
+    #             'out_channels_list'] = out_channels_list
+    #         # print(out_channels_list)
+    #         # exit()
+    #     else:  # base rec model
+    #         config["Architecture"]["Head"]["out_channels"] = char_num
     model = build_model(config['Architecture'], **global_config)
 
     load_model(config, model)
