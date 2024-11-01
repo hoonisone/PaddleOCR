@@ -138,9 +138,9 @@ class KeepKeys(object):
 
     def __call__(self, data):
         if self.data_type == "list":
-            return [data[key] for key in self.keep_keys]
+            return [data[key] for key in self.keep_keys if key in data]
         elif self.data_type == "dict":
-            return {key: data[key] for key in self.keep_keys}
+            return {key: data[key] for key in self.keep_keys if key in data}
         else:
             raise Exception("Error")
 

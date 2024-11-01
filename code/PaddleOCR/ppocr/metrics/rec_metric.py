@@ -151,51 +151,33 @@ class RecMetric_GraphemeLabel(object):
                 self.inner_recmetric["o"]["utf8composed"][g] = RecMetric(main_indicator=main_indicator, is_filter=is_filter, ignore_space=True, test_print=(g=="character") and print_test, **kwargs)
                 self.inner_recmetric["x"]["utf8composed"][g] = RecMetric(main_indicator=main_indicator, is_filter=is_filter, ignore_space=False, **kwargs)
 
+        if "utf8string" in self.handling_grapheme and "character" in self.handling_grapheme: # Utf8 & Character Ensemble
+            for name in ["ensemble(c+g_utf8)_by_char", "ensemble(c+g_utf8)_by_word"]:
+                self.inner_recmetric["o"].setdefault(name, {})
+                self.inner_recmetric["x"].setdefault(name, {})
+                self.inner_recmetric["o"][name]["character"] = RecMetric(main_indicator=main_indicator, is_filter=is_filter, ignore_space=True, **kwargs)
+                self.inner_recmetric["x"][name]["character"] = RecMetric(main_indicator=main_indicator, is_filter=is_filter, ignore_space=False, **kwargs)
+            
+        if len(pure_grapheme) == 3 and "character" in self.handling_grapheme: # Character & Composed Ensemble
+            for name in ["ensemble(c+g)_by_char", "ensemble(c+g)_by_word"]:
+                self.inner_recmetric["o"].setdefault(name, {})
+                self.inner_recmetric["x"].setdefault(name, {})
+                
+                self.inner_recmetric["o"][name]["character"] = RecMetric(main_indicator=main_indicator, is_filter=is_filter, ignore_space=True, **kwargs)
+                self.inner_recmetric["x"][name]["character"] = RecMetric(main_indicator=main_indicator, is_filter=is_filter, ignore_space=False, **kwargs)
+            
+
     @property
     def main_indicator(self):
         return self._main_indicator
 
     def __call__(self, pred_label, batch=None, *args, **kwargs):
-        # print(pred_label["character"][1])
-        # print(batch["text_label"])
-        
 
-        ## organize label
-        # if "character" in pred_label.keys():
-        #     label_dict = {"character":pred_label["character"][1], "initial":[], "medial":[], "final":[]}
-        #     for label in pred_label["character"][1]:
-        #         decomposed = decompose_korean_char(label[0])
-        #         label_dict["initial"].append([decomposed["initial"], 1])
-        #         label_dict["medial"].append([decomposed["medial"], 1])
-        #         label_dict["final"].append([decomposed["final"], 1])
-        # else:
-        #     label_dict = {k: v[1] for k, v in pred_label.items()}
-        #     if "composed" in label_dict:
-        #         label_dict["character"] = label_dict["composed"]
-        #         del label_dict["composed"]
-
-        # if "utf8string" in pred_label:
-        #     label_dict["utf8string"] = pred_label["utf8string"][1]
-            
-            
-            
-            
-            
-            
-
-        # print(label_dict["character"])
-        # print()
         label_dict = {}
         for grapheme, labels in batch["text_label"].items():
             label_dict[grapheme] = [(label, [1]) for label in labels]
 
 
-
-        # print(label_dict["character"])
-        # print()
-        # print(batch["text_label"]["character"])
-
-        # exit()
 
         ## organize pred
         pred_dict = {"direct":{}, "composed":{}, "utf8composed":{}}
@@ -233,22 +215,14 @@ class RecMetric_GraphemeLabel(object):
                 pred_dict["utf8composed"]["initial"].append([decomposed["initial"], probability])
                 pred_dict["utf8composed"]["medial"].append([decomposed["medial"], probability])
                 pred_dict["utf8composed"]["final"].append([decomposed["final"], probability])
-            # print(pred_label["utf8string"][0])
-            # print(pred_label["utf8composed"][0])
-            # exit()
-        # print(pred_dict.keys())
-        # print(pred_dict["composed"].keys())
-        # print(pred_dict["direct"])
-        # exit()
-        # print(pred_dict["composed"]["initial"])
-        # print(label_dict.keys())    
-        # exit()
-    
-    
-        # print(pred_dict)
-        # print()
-        # print(label_dict)
-        # exit()
+                
+
+        for ensemble in ["ensemble(c+g)_by_char", "ensemble(c+g)_by_word", "ensemble(c+g_utf8)_by_char", "ensemble(c+g_utf8)_by_word"]:
+            if ensemble in pred_label:
+                pred_dict.setdefault(ensemble, {})
+                pred_dict[ensemble]["character"] = pred_label[ensemble][0]
+            
+
 
         metric_report = {}
         for pred_type, value in pred_dict.items(): # Direct, Composed

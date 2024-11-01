@@ -145,6 +145,8 @@ class WorkDB(DB):
         df.to_csv(report_path)
 
     
+
+    
     def modify_train_config(self, id, key, value):
         
         config = self.get_config(id, relative_to="project")
@@ -161,7 +163,12 @@ class WorkDB(DB):
         # print(train_config_name)
         
         # config = self.get_config(id, relative_to="absolute", config_name=)
-        
+    
+    def get_train_config(self, id):
+        config = self.get_config(id, relative_to="project")
+        train_config_name = Path(config["train_config"]).name
+        return super().get_config(id, config_name=train_config_name)
+    
     def modify_train_config2(self, id):
         config = self.get_config(id, relative_to="project")
         train_config_name = Path(config["train_config"]).name
@@ -309,12 +316,19 @@ class WorkDB(DB):
         evaluated_epoches = self.get_evaluated_epoches(id, task)
         return sorted(list(set(epoches) - set(evaluated_epoches)))
     
-    def command_split(self, type, mode, n):
+    def command_split(self, type, mode, n, shuffle = False):
         with open(f"/home/works/{type}.sh") as f:
             lines = f.readlines()
-            splits = [[] for i in range(n)]
-            for i, line in enumerate(lines):
-                splits[i%n].append(line)
+        
+        if shuffle:
+            import random
+            random.shuffle(lines)
+        
+        splits = [[] for i in range(n)]
+        for i, line in enumerate(lines):
+            splits[i%n].append(line)
+                
+                
 
         for i, split in enumerate(splits):
             with open(f"/home/works/{type}{i}.sh", mode) as f:
@@ -326,7 +340,7 @@ class WorkDB(DB):
         with open(f"/home/works/{mode}.sh", "w") as f:
             f.write("")
     
-    def eval_all(self, id, task, relative_to="absolute", command_to="global", check_result = True, labelsets=None, data_dir=None, save = True):
+    def eval_all(self, id, task, relative_to="absolute", command_to="global", check_result = True, labelsets=None, data_dir=None, save = True, filter = None):
         
         unevaluated_epoches =  self.get_unevaluated_epoches(id, task)
         
@@ -339,6 +353,10 @@ class WorkDB(DB):
             labelsets = sum([c["label"][task] for c in labelset_configs], [])
         
         for version in unevaluated_epoches:
+            if filter:
+                if not filter(version):
+                    continue
+            
             
             train_config = config["train_config"]
             model_weight = self.get_model_weight(id, version, relative_to=relative_to)
@@ -356,7 +374,7 @@ class WorkDB(DB):
                     "Eval.dataset.label_file_list":f"""['{"','".join(labelsets)}']""",
                     "Eval.save":save,
                     "Eval.check_exist":check_result,
-                    "Eval.dataset.cache_file": config["eval_cache_file"]
+                    # "Eval.dataset.cache_file": config["eval_cache_file"]
                     }
             
             command = f"python {code} -c {train_config} -o {' '.join([f'{k}={v}' for k, v in options.items()])}"
@@ -413,7 +431,7 @@ class WorkDB(DB):
                 "Eval.dataset.label_file_list":f"""['{"','".join(labelsets)}']""",
                 "Eval.save":save,
                 "Eval.check_exist":check_result,
-                "Eval.dataset.cache_file": config["eval_cache_file"]
+                # "Eval.dataset.cache_file": config["eval_cache_file"]
                 }
         
         command = f"python {code} -c {train_config} -o {' '.join([f'{k}={v}' for k, v in options.items()])}"
@@ -494,11 +512,11 @@ class WorkDB(DB):
                    
                    "Train.dataset.data_dir": labelset_configs[0]["dataset_dir"],
                    "Train.dataset.label_file_list":f"""['{"','".join(train_labelsets)}']""",
-                   "Train.dataset.cache_file": config["train_cache_file"],
+                #    "Train.dataset.cache_file": config["train_cache_file"],
                    
                    "Eval.dataset.data_dir": labelset_configs[0]["dataset_dir"],
                    "Eval.dataset.label_file_list":f"""['{"','".join(eval_labelsets)}']""",
-                   "Eval.dataset.cache_file": config["eval_cache_file"]
+                #    "Eval.dataset.cache_file": config["eval_cache_file"]
                    }
         
         command = f"python {code} -c {train_config} -o {' '.join([f'{k}={v}' for k, v in options.items()])}"
@@ -591,19 +609,19 @@ class WorkDB(DB):
             f.write(command+"\n")
 
 
-    def get_best_epoch(self, id, criteria = "test", metric=None):
+    def get_best_epoch(self, id, task = "test", metric=None):
         if metric is None:
             config = self.get_config(id)
             metric = config["metric"]
         
         df = self.get_report_df(id)
         df.reset_index(inplace=True)
-        df = df[df["task"] == criteria]
+        df = df[df["task"] == task]
         df = df[df["version"] != "best"]
         return df.loc[df[metric].idxmax()].version
     
-    def get_best_report(self, id, criteria = "test", metric="acc"):
-        epoch = self.get_best_epoch(id, criteria, metric=metric)
+    def get_best_report(self, id, task = "test", metric="acc"):
+        epoch = self.get_best_epoch(id, task, metric=metric)
         df = self.get_report_df(id)
         return df[df["version"] == epoch]
 

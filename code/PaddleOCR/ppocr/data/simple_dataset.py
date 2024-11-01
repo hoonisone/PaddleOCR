@@ -22,6 +22,7 @@ import traceback
 from paddle.io import Dataset
 from .imaug import transform, create_operators
 from ppocr.utils.dataset_cache import DatasetCache, HDF5PickleStorage
+from pathlib import Path
 
 class SimpleDataSet(Dataset): 
     def __init__(self, config, mode, logger, seed=None):
@@ -43,9 +44,11 @@ class SimpleDataSet(Dataset):
         data_source_num = len(label_file_list)
         ratio_list = dataset_config.get("ratio_list", 1.0)
         self.cache = dataset_config.get('use_cache', False)
+        print(self.cache)
         if self.cache:
             self.cache_file = dataset_config.get('cache_file', "/home/dataset_cache.h5")
-            
+            if not Path(self.cache_file).exists():
+                raise FileNotFoundError(f"Cache file {self.cache_file} does not exist.")
 
             self.dataset_cache = HDF5PickleStorage(self.cache_file)
 

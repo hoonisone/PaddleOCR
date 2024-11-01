@@ -103,20 +103,28 @@ def main(config, device, logger, vdl_writer):
     set_signal_handlers()
 
     
-    # config["Eval"]["dataset"]["transforms_uncachiable"] = []
-    # train_dataset = build_dataloader(config, 'Eval', device, logger).dataset
-    # train_cache = HDF5PickleStorage(config["Eval"]["dataset"]["cache_file"])
+
+    # print("**********Train set")
+    # config["Train"]["dataset"]["transforms_uncachiable"] = []
+    # config["Train"]["dataset"]["use_cache"] = False
+    # train_dataset = build_dataloader(config, 'Train', device, logger).dataset
+    # train_cache = HDF5PickleStorage(config["Train"]["dataset"]["cache_file"])
     
-    config["Train"]["dataset"]["transforms_uncachiable"] = []
-    train_dataset = build_dataloader(config, 'Train', device, logger).dataset
-    train_cache = HDF5PickleStorage(config["Train"]["dataset"]["cache_file"])
     
+    # size = len(train_dataset)
+    # for i in range(0, size//100000+1):    
+    #     sub_task(train_dataset, train_cache, range(100000*i, min(100000*(i+1), size)), worker_num=30)
+
+    
+    print("**********Eval set")
+    config["Eval"]["dataset"]["transforms_uncachiable"] = []
+    config["Eval"]["dataset"]["use_cache"] = False
+    train_dataset = build_dataloader(config, 'Eval', device, logger).dataset
+    train_cache = HDF5PickleStorage(config["Eval"]["dataset"]["cache_file"])
     
     size = len(train_dataset)
     for i in range(0, size//100000+1):    
         sub_task(train_dataset, train_cache, range(100000*i, min(100000*(i+1), size)), worker_num=30)
-
-        
 
 if __name__ == '__main__':
     print("시작")

@@ -19,6 +19,7 @@ import numpy as np
 import paddle
 from paddle.nn import functional as F
 import re
+from ppocr.utils.korean_compose_by_utf8 import compose_string_by_utf8, char_level_ensemble, word_level_ensemble
 
 def softmax(x, axis=None):
     # Overflow 방지를 위해 입력 값에서 최대값을 뺀 후 지수 계산
@@ -188,7 +189,77 @@ class CTCLabelDecode_TEST(BaseRecLabelDecode):
         dict_character = ['blank'] + dict_character
         return dict_character
 
+class CTCLabelDecode_GraphemeLabel_old(object):
+    """ Convert between text-label and text-index """
 
+    def __init__(self, handling_grapheme, character_dict_path=None, use_space_char=False,
+                 **kwargs):
+        self.grapheme = handling_grapheme
+        self.decode_dict = {
+            grphame:CTCLabelDecode(character_dict_path = character_dict_path[grphame],
+                                           use_space_char = use_space_char,
+                                           **kwargs)
+            for grphame in self.grapheme
+        }
+
+        self.character = {grapheme: self.decode_dict[grapheme].character for grapheme in self.grapheme}
+        self.char_num = {grapheme: self.decode_dict[grapheme].char_num for grapheme in self.grapheme}
+    
+    def compose_character(self, preds, label=None):
+        initials = preds["initial"]
+        medials = preds["medial"]
+        finals = preds["final"]
+        
+
+
+        if label is None: # no label
+            composed = list()
+            for (i, ip), (m, mp), (f, fp) in zip(initials, medials, finals):                
+                print(i, m, f, ip, mp, fp)
+                label, p = ABINetLabelDecode_GraphemeLabel_All.compose_korean_char(i, m, f, ip, mp, fp)
+                composed.append((label, p))
+            return composed
+                
+        else: # with label
+            gt_composed = list()
+            composed = list()
+            for (i, ip), (gt_i, gt_ip), (m, mp), (gt_m, gt_mp), (f, fp), (gt_f, gt_fp) in zip(*initials, *medials, *finals):
+                gt_label, gt_p = ABINetLabelDecode_GraphemeLabel_All.compose_korean_char(gt_i, gt_m, gt_f, gt_ip, gt_mp, gt_fp)
+                gt_composed.append((gt_label, gt_p))
+                
+                label, p = ABINetLabelDecode_GraphemeLabel_All.compose_korean_char(i, m, f, ip, mp, fp)                    
+                composed.append((label, p))
+            return composed, gt_composed
+     
+    
+    def __call__(self, preds, label=None, *args, **kwargs):
+        
+        # print(preds)
+        result = dict()
+        
+
+        
+        for model_name, pred in preds.items():
+            model_result = dict()
+            for grapheme in self.grapheme:
+                if label != None:
+                    arg_label=label[grapheme].numpy()
+                else:
+                    arg_label = None
+                model_result[grapheme] = self.decode_dict[grapheme](pred[grapheme], label=arg_label, *args, **kwargs)
+            
+            if all([name in self.decode_dict.keys() for name in ["initial", "medial", "final"]]):
+                
+                model_result["composed"] = self.compose_character(model_result, label)
+            result[model_name] = model_result
+            
+
+        return result
+
+
+    def add_special_char(self, dict_character):
+        dict_character = ['blank'] + dict_character
+        return dict_character
 
 class CTCLabelDecode_GraphemeLabel(object):
     """ Convert between text-label and text-index """
@@ -247,88 +318,45 @@ class CTCLabelDecode_GraphemeLabel(object):
                     arg_label = None
                 model_result[grapheme] = self.decode_dict[grapheme](pred[grapheme], label=arg_label, *args, **kwargs)
             
-            if all([name in self.decode_dict.keys() for name in ["initial", "medial", "final"]]):
-                
+            ### 이 부분만 추가함 !!!!!!!!!!!!!!!!!!!!!!!!!!!
+            if "utf8string" in model_result:
+                model_result["utf8composed"] = self.composed_utf8_string(model_result, label)
+            
+            if all([name in self.decode_dict.keys() for name in ["initial", "medial", "final"]]):                
                 model_result["composed"] = self.compose_character(model_result, label)
+            
+            ### Ensemble
+            if "utf8composed" in model_result and "character" in model_result:
+                
+                char_pred = model_result["character"][0]
+                utf8_pred = model_result["utf8composed"][0]
+                gt = model_result["character"][1]
+                #########
+                ensemble = [char_level_ensemble(c, utf8) for c, utf8 in zip(char_pred, utf8_pred)]
+                model_result["ensemble(c+g_utf8)_by_char"] = [ensemble, gt]
+                #########
+                ensemble = [word_level_ensemble(c, utf8) for c, utf8 in zip(char_pred, utf8_pred)]
+                model_result["ensemble(c+g_utf8)_by_word"] = [ensemble, gt]
+                
+            if "composed" in model_result and "character" in model_result:
+                char_pred = model_result["character"][0]
+                composed_pred = model_result["composed"][0]
+                gt = model_result["character"][1]
+                #########
+                ensemble = [char_level_ensemble(c, utf8) for c, utf8 in zip(char_pred, composed_pred)]
+                model_result["ensemble(c+g)_by_char"] = [ensemble, gt]
+                #########
+                ensemble = [word_level_ensemble(c, utf8) for c, utf8 in zip(char_pred, composed_pred)]
+                model_result["ensemble(c+g)_by_word"] = [ensemble, gt]
+
             result[model_name] = model_result
             
-
         return result
-
 
     def add_special_char(self, dict_character):
         dict_character = ['blank'] + dict_character
         return dict_character
 
-from ppocr.utils.korean_compose_by_utf8 import compose_string_by_utf8
-class CTCLabelDecode_GraphemeLabel_utf8(object):
-    """ Convert between text-label and text-index """
-
-    def __init__(self, handling_grapheme, character_dict_path=None, use_space_char=False,
-                 **kwargs):
-        self.grapheme = handling_grapheme
-        self.decode_dict = {
-            grphame:CTCLabelDecode(character_dict_path = character_dict_path[grphame],
-                                           use_space_char = use_space_char,
-                                           **kwargs)
-            for grphame in self.grapheme
-        }
-
-        self.character = {grapheme: self.decode_dict[grapheme].character for grapheme in self.grapheme}
-        self.char_num = {grapheme: self.decode_dict[grapheme].char_num for grapheme in self.grapheme}
-    
-    def compose_character(self, preds, label=None):
-        initials = preds["initial"]
-        medials = preds["medial"]
-        finals = preds["final"]
-        
-
-        if label is None: # no label
-            composed = list()
-            for (i, ip), (m, mp), (f, fp) in zip(initials, medials, finals):                
-                print(i, m, f, ip, mp, fp)
-                label, p = ABINetLabelDecode_GraphemeLabel_All.compose_korean_char(i, m, f, ip, mp, fp)
-                composed.append((label, p))
-            return composed
-                
-        else: # with label
-            gt_composed = list()
-            composed = list()
-            for (i, ip), (gt_i, gt_ip), (m, mp), (gt_m, gt_mp), (f, fp), (gt_f, gt_fp) in zip(*initials, *medials, *finals):
-                gt_label, gt_p = ABINetLabelDecode_GraphemeLabel_All.compose_korean_char(gt_i, gt_m, gt_f, gt_ip, gt_mp, gt_fp)
-                gt_composed.append((gt_label, gt_p))
-                
-                label, p = ABINetLabelDecode_GraphemeLabel_All.compose_korean_char(i, m, f, ip, mp, fp)                    
-                composed.append((label, p))
-            return composed, gt_composed
-     
-    
-    def __call__(self, preds, label=None, *args, **kwargs):
-        
-        # print(preds)
-        result = dict()
-        
-        for model_name, pred in preds.items():
-            model_result = dict()
-            for grapheme in self.grapheme:
-                if label != None:
-                    arg_label=label[grapheme].numpy()
-                else:
-                    arg_label = None
-                model_result[grapheme] = self.decode_dict[grapheme](pred[grapheme], label=arg_label, *args, **kwargs)
-            
-            ### 이 부분만 추가함 !!!!!!!!!!!!!!!!!!!!!!!!!!!
-            if "utf8string" in self.grapheme:
-                model_result["utf8composed"] = self.composed_utf8_string(model_result, label)
-            
-            if all([name in self.decode_dict.keys() for name in ["initial", "medial", "final"]]):                
-                model_result["composed"] = self.compose_character(model_result, label)
-                
-            result[model_name] = model_result
-    
-        return result
-    
-    
     def composed_utf8_string(self, preds, label=None):
         utf8string = preds["utf8string"]
         
@@ -344,111 +372,227 @@ class CTCLabelDecode_GraphemeLabel_utf8(object):
             # return composed
                 
         else: # with label
-            composed = [(compose_string_by_utf8(pred), pred_p) for pred, pred_p in utf8string[0]]
-            gt_composed = [(compose_string_by_utf8(gt), gt_p) for gt, gt_p in utf8string[1]]
+            composed = [compose_string_by_utf8(pred, pred_p) for pred, pred_p in utf8string[0]]
+            gt_composed = [compose_string_by_utf8(gt, gt_p) for gt, gt_p in utf8string[1]]
 
             return composed, gt_composed
-        
+
+
+# class CTCLabelDecode_GraphemeLabel_utf8(object):
+#     """ Convert between text-label and text-index """
+
+#     def __init__(self, handling_grapheme, character_dict_path=None, use_space_char=False,
+#                  **kwargs):
+#         self.grapheme = handling_grapheme
+#         self.decode_dict = {
+#             grphame:CTCLabelDecode(character_dict_path = character_dict_path[grphame],
+#                                            use_space_char = use_space_char,
+#                                            **kwargs)
+#             for grphame in self.grapheme
+#         }
+
+#         self.character = {grapheme: self.decode_dict[grapheme].character for grapheme in self.grapheme}
+#         self.char_num = {grapheme: self.decode_dict[grapheme].char_num for grapheme in self.grapheme}
     
-
-    def add_special_char(self, dict_character):
-        dict_character = ['blank'] + dict_character
-        return dict_character
-
-class CTCLabelDecode_Grapheme(object):               ## 옛날 CTC 버전
-    """ Convert between text-label and text-index """
-
-    def __init__(self, handling_grapheme, character_dict_path=None, use_space_char=False,
-                 **kwargs):
-        self.grapheme = handling_grapheme
-        self.decode_dict = {
-            grphame:CTCLabelDecode(character_dict_path = character_dict_path[grphame],
-                                           use_space_char = use_space_char,
-                                           **kwargs)
-            for grphame in self.grapheme
-        }
-        # self.first_decode = CTCLabelDecode(character_dict_path = character_dict_path[0],
-        #                                    use_space_char = use_space_char,
-        #                                    **kwargs)
-        # self.second_decode = CTCLabelDecode(character_dict_path = character_dict_path[1],
-        #                             use_space_char = use_space_char,
-        #                             **kwargs)
-        # self.third_decode = CTCLabelDecode(character_dict_path = character_dict_path[2],
-        #                     use_space_char = use_space_char,
-        #                     **kwargs)
-        # self.origin_decode = CTCLabelDecode(character_dict_path = character_dict_path[3],
-        #                     use_space_char = use_space_char,
-        #                     **kwargs)
-        self.character = {grapheme: self.decode_dict[grapheme].character for grapheme in self.grapheme}
-        self.char_num = {grapheme: self.decode_dict[grapheme].char_num for grapheme in self.grapheme}
-        # self.character = [self.first_decode.character, self.second_decode.character, self.third_decode.character, self.origin_decode.character] # character 속성이 있는지를 통해 조건을 체크하는 부분이 있어서 CTCLabelDecode와 동일하게 생성해줌
-    
-    def compose_character(self, preds, label=None):
-        initials = preds["initial"]
-        medials = preds["medial"]
-        finals = preds["final"]
+#     def compose_character(self, preds, label=None):
+#         initials = preds["initial"]
+#         medials = preds["medial"]
+#         finals = preds["final"]
         
-        
-        if label is None: # no label
-            composed = list()
-            for (i, ip), (m, mp), (f, fp) in zip(initials, medials, finals):                
-                print(i, m, f, ip, mp, fp)
-                label, p = ABINetLabelDecode_GraphemeLabel_All.compose_korean_char(i, m, f, ip, mp, fp)
-                composed.append((label, p))
-            return composed
+
+#         if label is None: # no label
+#             composed = list()
+#             for (i, ip), (m, mp), (f, fp) in zip(initials, medials, finals):                
+#                 print(i, m, f, ip, mp, fp)
+#                 label, p = ABINetLabelDecode_GraphemeLabel_All.compose_korean_char(i, m, f, ip, mp, fp)
+#                 composed.append((label, p))
+#             return composed
                 
-        else: # with label
-            gt_composed = list()
-            composed = list()
-            for (i, ip), (gt_i, gt_ip), (m, mp), (gt_m, gt_mp), (f, fp), (gt_f, gt_fp) in zip(*initials, *medials, *finals):
-                gt_label, gt_p = ABINetLabelDecode_GraphemeLabel_All.compose_korean_char(gt_i, gt_m, gt_f, gt_ip, gt_mp, gt_fp)
-                gt_composed.append((gt_label, gt_p))
+#         else: # with label
+#             gt_composed = list()
+#             composed = list()
+#             for (i, ip), (gt_i, gt_ip), (m, mp), (gt_m, gt_mp), (f, fp), (gt_f, gt_fp) in zip(*initials, *medials, *finals):
+#                 gt_label, gt_p = ABINetLabelDecode_GraphemeLabel_All.compose_korean_char(gt_i, gt_m, gt_f, gt_ip, gt_mp, gt_fp)
+#                 gt_composed.append((gt_label, gt_p))
                 
-                label, p = ABINetLabelDecode_GraphemeLabel_All.compose_korean_char(i, m, f, ip, mp, fp)                    
-                composed.append((label, p))
-            return composed, gt_composed
+#                 label, p = ABINetLabelDecode_GraphemeLabel_All.compose_korean_char(i, m, f, ip, mp, fp)                    
+#                 composed.append((label, p))
+#             return composed, gt_composed
      
     
-    def __call__(self, preds, label=None, *args, **kwargs):
-        result = dict()
-        for grapheme in self.grapheme:
-            if label != None:
-                arg_label=label[f"{grapheme}_label"].numpy()
-            else:
-                arg_label = None
-            result[grapheme] = self.decode_dict[grapheme](preds[grapheme], label=arg_label, *args, **kwargs)
+#     def __call__(self, preds, label=None, *args, **kwargs):
         
-        if all([name in self.decode_dict.keys() for name in ["initial", "medial", "final"]]):
+#         # print(preds)
+#         result = dict()
+        
+#         for model_name, pred in preds.items():
+#             model_result = dict()
+#             for grapheme in self.grapheme:
+#                 if label != None:
+#                     arg_label=label[grapheme].numpy()
+#                 else:
+#                     arg_label = None
+#                 model_result[grapheme] = self.decode_dict[grapheme](pred[grapheme], label=arg_label, *args, **kwargs)
             
-            result["composed"] = self.compose_character(result, label)
+#             ### 이 부분만 추가함 !!!!!!!!!!!!!!!!!!!!!!!!!!!
+#             if "utf8string" in model_result:
+#                 model_result["utf8composed"] = self.composed_utf8_string(model_result, label)
+            
+#             if all([name in self.decode_dict.keys() for name in ["initial", "medial", "final"]]):                
+#                 model_result["composed"] = self.compose_character(model_result, label)
+            
+#             ### Ensemble
+#             if "utf8composed" in model_result and "character" in model_result:
+                
+#                 char_pred = model_result["character"][0]
+#                 utf8_pred = model_result["utf8composed"][0]
+#                 gt = model_result["character"][1]
+#                 #########
+#                 ensemble = [char_level_ensemble(c, utf8) for c, utf8 in zip(char_pred, utf8_pred)]
+#                 model_result["ensemble(c+g_utf8)_by_char"] = [ensemble, gt]
+#                 #########
+#                 ensemble = [word_level_ensemble(c, utf8) for c, utf8 in zip(char_pred, utf8_pred)]
+#                 model_result["ensemble(c+g_utf8)_by_word"] = [ensemble, gt]
+                
+#             if "composed" in model_result and "character" in model_result:
+#                 char_pred = model_result["character"][0]
+#                 composed_pred = model_result["composed"][0]
+#                 gt = model_result["character"][1]
+#                 #########
+#                 ensemble = [char_level_ensemble(c, utf8) for c, utf8 in zip(char_pred, composed_pred)]
+#                 model_result["ensemble(c+g)_by_char"] = [ensemble, gt]
+#                 #########
+#                 ensemble = [word_level_ensemble(c, utf8) for c, utf8 in zip(char_pred, composed_pred)]
+#                 model_result["ensemble(c+g)_by_word"] = [ensemble, gt]
+
+#             result[model_name] = model_result
+    
+
+    
+#         return result
+    
+    
+#     def composed_utf8_string(self, preds, label=None):
+#         utf8string = preds["utf8string"]
+        
+        
+#         if label is None: # no label
+#             raise NotImplementedError
+#             # composed = list()
+#             # for pred, prob in utf8string:
+              
+#             #     print(i, m, f, ip, mp, fp)
+#             #     label, p = ABINetLabelDecode_GraphemeLabel_All.compose_korean_char(i, m, f, ip, mp, fp)
+#             #     composed.append((label, p))
+#             # return composed
+                
+#         else: # with label
+#             composed = [compose_string_by_utf8(pred, pred_p) for pred, pred_p in utf8string[0]]
+#             gt_composed = [compose_string_by_utf8(gt, gt_p) for gt, gt_p in utf8string[1]]
+
+#             return composed, gt_composed
+        
+    
+
+#     def add_special_char(self, dict_character):
+#         dict_character = ['blank'] + dict_character
+#         return dict_character
+
+class CTCLabelDecode_Grapheme(object):               ## 옛날 CTC 버전
+    pass
+    # """ Convert between text-label and text-index """
+
+    # def __init__(self, handling_grapheme, character_dict_path=None, use_space_char=False,
+    #              **kwargs):
+    #     self.grapheme = handling_grapheme
+    #     self.decode_dict = {
+    #         grphame:CTCLabelDecode(character_dict_path = character_dict_path[grphame],
+    #                                        use_space_char = use_space_char,
+    #                                        **kwargs)
+    #         for grphame in self.grapheme
+    #     }
+    #     # self.first_decode = CTCLabelDecode(character_dict_path = character_dict_path[0],
+    #     #                                    use_space_char = use_space_char,
+    #     #                                    **kwargs)
+    #     # self.second_decode = CTCLabelDecode(character_dict_path = character_dict_path[1],
+    #     #                             use_space_char = use_space_char,
+    #     #                             **kwargs)
+    #     # self.third_decode = CTCLabelDecode(character_dict_path = character_dict_path[2],
+    #     #                     use_space_char = use_space_char,
+    #     #                     **kwargs)
+    #     # self.origin_decode = CTCLabelDecode(character_dict_path = character_dict_path[3],
+    #     #                     use_space_char = use_space_char,
+    #     #                     **kwargs)
+    #     self.character = {grapheme: self.decode_dict[grapheme].character for grapheme in self.grapheme}
+    #     self.char_num = {grapheme: self.decode_dict[grapheme].char_num for grapheme in self.grapheme}
+    #     # self.character = [self.first_decode.character, self.second_decode.character, self.third_decode.character, self.origin_decode.character] # character 속성이 있는지를 통해 조건을 체크하는 부분이 있어서 CTCLabelDecode와 동일하게 생성해줌
+    
+    # def compose_character(self, preds, label=None):
+    #     initials = preds["initial"]
+    #     medials = preds["medial"]
+    #     finals = preds["final"]
+        
+        
+    #     if label is None: # no label
+    #         composed = list()
+    #         for (i, ip), (m, mp), (f, fp) in zip(initials, medials, finals):                
+    #             print(i, m, f, ip, mp, fp)
+    #             label, p = ABINetLabelDecode_GraphemeLabel_All.compose_korean_char(i, m, f, ip, mp, fp)
+    #             composed.append((label, p))
+    #         return composed
+                
+    #     else: # with label
+    #         gt_composed = list()
+    #         composed = list()
+    #         for (i, ip), (gt_i, gt_ip), (m, mp), (gt_m, gt_mp), (f, fp), (gt_f, gt_fp) in zip(*initials, *medials, *finals):
+    #             gt_label, gt_p = ABINetLabelDecode_GraphemeLabel_All.compose_korean_char(gt_i, gt_m, gt_f, gt_ip, gt_mp, gt_fp)
+    #             gt_composed.append((gt_label, gt_p))
+                
+    #             label, p = ABINetLabelDecode_GraphemeLabel_All.compose_korean_char(i, m, f, ip, mp, fp)                    
+    #             composed.append((label, p))
+    #         return composed, gt_composed
+     
+    
+    # def __call__(self, preds, label=None, *args, **kwargs):
+    #     result = dict()
+    #     for grapheme in self.grapheme:
+    #         if label != None:
+    #             arg_label=label[f"{grapheme}_label"].numpy()
+    #         else:
+    #             arg_label = None
+    #         result[grapheme] = self.decode_dict[grapheme](preds[grapheme], label=arg_label, *args, **kwargs)
+        
+    #     if all([name in self.decode_dict.keys() for name in ["initial", "medial", "final"]]):
+            
+    #         result["composed"] = self.compose_character(result, label)
             
 
         
         
-        # first = self.first_decode(preds[0], label=label[0], *args, **kwargs)
-        # second = self.second_decode(preds[1], label=label[1], *args, **kwargs)
-        # third = self.third_decode(preds[2], label=label[2], *args, **kwargs)
+    #     # first = self.first_decode(preds[0], label=label[0], *args, **kwargs)
+    #     # second = self.second_decode(preds[1], label=label[1], *args, **kwargs)
+    #     # third = self.third_decode(preds[2], label=label[2], *args, **kwargs)
         
         
-        # texts = {"first":first[0], "second":second[0], "third":third[0]}
-        # labels = {"first":first[1], "second":second[1], "third":third[1]}
-        # print(result)
-        # exit()
-        # texts = {grapheme: result[grapheme][0] for grapheme in self.grapheme}
-        # print(result["character"])
-        # exit()
-        # try: 
-        #     labels = {grapheme: result[grapheme][1] for grapheme in self.grapheme}
-        #     a = {grapheme: (result[grapheme][1]) for grapheme in self.grapheme}
+    #     # texts = {"first":first[0], "second":second[0], "third":third[0]}
+    #     # labels = {"first":first[1], "second":second[1], "third":third[1]}
+    #     # print(result)
+    #     # exit()
+    #     # texts = {grapheme: result[grapheme][0] for grapheme in self.grapheme}
+    #     # print(result["character"])
+    #     # exit()
+    #     # try: 
+    #     #     labels = {grapheme: result[grapheme][1] for grapheme in self.grapheme}
+    #     #     a = {grapheme: (result[grapheme][1]) for grapheme in self.grapheme}
             
             
-        # except: # 추론형인 레이블 없음
-        #     labels = None
-        return {"vision": result}
+    #     # except: # 추론형인 레이블 없음
+    #     #     labels = None
+    #     return {"vision": result}
 
-    def add_special_char(self, dict_character):
-        dict_character = ['blank'] + dict_character
-        return dict_character
+    # def add_special_char(self, dict_character):
+    #     dict_character = ['blank'] + dict_character
+    #     return dict_character
 
 
 class DistillationCTCLabelDecode(CTCLabelDecode):
@@ -1300,6 +1444,30 @@ class ABINetLabelDecode_GraphemeLabel_All(object):
             if "utf8string" in self.handling_grapheme:
                 decode_dict["utf8composed"] = self.composed_utf8_string(decode_dict, label)
                 
+                        ### Ensemble
+            if "utf8composed" in decode_dict and "character" in decode_dict:
+                
+                char_pred = decode_dict["character"][0]
+                utf8_pred = decode_dict["utf8composed"][0]
+                gt = decode_dict["character"][1]
+                #########
+                ensemble = [char_level_ensemble(c, utf8) for c, utf8 in zip(char_pred, utf8_pred)]
+                decode_dict["ensemble(c+g_utf8)_by_char"] = [ensemble, gt]
+                #########
+                ensemble = [word_level_ensemble(c, utf8) for c, utf8 in zip(char_pred, utf8_pred)]
+                decode_dict["ensemble(c+g_utf8)_by_word"] = [ensemble, gt]
+                
+            if "composed" in decode_dict and "character" in decode_dict:
+                char_pred = decode_dict["character"][0]
+                composed_pred = decode_dict["composed"][0]
+                gt = decode_dict["character"][1]
+                #########
+                ensemble = [char_level_ensemble(c, utf8) for c, utf8 in zip(char_pred, composed_pred)]
+                decode_dict["ensemble(c+g)_by_char"] = [ensemble, gt]
+                #########
+                ensemble = [word_level_ensemble(c, utf8) for c, utf8 in zip(char_pred, composed_pred)]
+                decode_dict["ensemble(c+g)_by_word"] = [ensemble, gt]
+        
         
             result_dict[model_name] = decode_dict
             # print(decode_dict)
@@ -1313,7 +1481,7 @@ class ABINetLabelDecode_GraphemeLabel_All(object):
         
         if label is None: # no label
 
-            composed = [(compose_string_by_utf8(pred), pred_p) for pred, pred_p in utf8string]
+            composed = [compose_string_by_utf8(pred, pred_p) for pred, pred_p in utf8string]
             return composed
             # raise NotImplementedError
             # composed = list()
@@ -1325,8 +1493,8 @@ class ABINetLabelDecode_GraphemeLabel_All(object):
             # return composed
                 
         else: # with label
-            composed = [(compose_string_by_utf8(pred), pred_p) for pred, pred_p in utf8string[0]]
-            gt_composed = [(compose_string_by_utf8(gt), gt_p) for gt, gt_p in utf8string[1]]
+            composed = [compose_string_by_utf8(pred, pred_p) for pred, pred_p in utf8string[0]]
+            gt_composed = [compose_string_by_utf8(gt, gt_p) for gt, gt_p in utf8string[1]]
 
             return composed, gt_composed
         
