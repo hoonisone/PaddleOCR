@@ -1,3 +1,7 @@
+from functools import reduce
+from operator import mul
+
+
 HANGUL_BASE = 0xAC00
 CHO_BASE = 0x1100
 JUNG_BASE = 0x1161
@@ -109,15 +113,71 @@ def char_level_ensemble(pred1, pred2):
     except Exception as e:
         # print("char_level_ensemble error", e, pred1, pred2)
         return pred1
+    
+def char_level_ensemble_by_threshold(pred1, pred2, threshold=0.5, on = "left"):
+    c = []
+    p = []
+    if len(pred1[0]) == 0:
+        return pred1
+    elif len(pred2[0]) == 0:
+        return pred2
+
+    try:
+        for c1, p1, c2, p2 in zip(*pred1, *pred2):
+            if on == "left":
+                if p1 >= threshold:
+                    p.append(p1)
+                    c.append(c1)
+                else:
+                    p.append(p2)
+                    c.append(c2)
+            elif on == "right":
+                if p2 >= threshold:
+                    p.append(p2)
+                    c.append(c2)
+                else:
+                    p.append(p1)
+                    c.append(c1)
+            else:
+                raise ValueError("on should be either 'left' or 'right'")
+        return "".join(c), p
+    except Exception as e:
+        # print("char_level_ensemble error", e, pred1, pred2)
+        return pred1
 
 def word_level_ensemble(pred1, pred2):
     try:
-        p1 = sum(pred1[1])/len(pred1[1])
-        p2 = sum(pred2[1])/len(pred2[1])
+        p1 = reduce(mul, pred1[1])
+        p2 = reduce(mul, pred2[1])
         if p1 >= p2:
             return pred1
         else:
             return pred2
+    except Exception as e:
+        # print("work_level_ensemble error", e, pred1, pred2)
+        return pred1
+
+
+def word_level_ensemble_by_threshold(pred1, pred2, threshold=0.5, on = "left"):
+    try:
+        p1 = reduce(mul, pred1[1])
+        p2 = reduce(mul, pred2[1])
+        # if p1 >= p2:
+        
+        if on == "left" :
+            if p1 >= threshold:
+                return pred1
+            else:
+                return pred2
+        
+        elif on == "right":
+            if p2 >= threshold:
+                return pred2
+            else:
+                return pred1
+        else:
+            raise ValueError("on should be either 'left' or 'right'")
+
     except Exception as e:
         # print("work_level_ensemble error", e, pred1, pred2)
         return pred1

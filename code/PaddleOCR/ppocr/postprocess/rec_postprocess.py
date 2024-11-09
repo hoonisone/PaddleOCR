@@ -19,7 +19,7 @@ import numpy as np
 import paddle
 from paddle.nn import functional as F
 import re
-from ppocr.utils.korean_compose_by_utf8 import compose_string_by_utf8, char_level_ensemble, word_level_ensemble
+from ppocr.utils.korean_compose_by_utf8 import compose_string_by_utf8, char_level_ensemble, word_level_ensemble, word_level_ensemble_by_threshold, char_level_ensemble_by_threshold
 
 def softmax(x, axis=None):
     # Overflow 방지를 위해 입력 값에서 최대값을 뺀 후 지수 계산
@@ -276,7 +276,10 @@ class CTCLabelDecode_GraphemeLabel(object):
 
         self.character = {grapheme: self.decode_dict[grapheme].character for grapheme in self.grapheme}
         self.char_num = {grapheme: self.decode_dict[grapheme].char_num for grapheme in self.grapheme}
-    
+        self.c_th_list = [0.01, 0.03, 0.05, 0.10, 0.20, 0.25, 0.30, 0.35, 0.40, 0.50, 0.60, 0.70, 0.80, 0.90]
+        self.g_th_list = [0.50, 0.60, 0.70, 0.80, 0.90, 0.95, 0.96, 0.97, 0.98, 0.99, 0.995, 0.999]
+        
+        
     def compose_character(self, preds, label=None):
         initials = preds["initial"]
         medials = preds["medial"]
@@ -310,6 +313,8 @@ class CTCLabelDecode_GraphemeLabel(object):
         result = dict()
         
         for model_name, pred in preds.items():
+            # if model_name == "head_confidence":
+            #     continue
             model_result = dict()
             for grapheme in self.grapheme:
                 if label != None:
@@ -325,29 +330,169 @@ class CTCLabelDecode_GraphemeLabel(object):
             if all([name in self.decode_dict.keys() for name in ["initial", "medial", "final"]]):                
                 model_result["composed"] = self.compose_character(model_result, label)
             
-            ### Ensemble
-            if "utf8composed" in model_result and "character" in model_result:
+            
+            if label == None:
+                ### Ensemble
+                if "utf8composed" in model_result and "character" in model_result:
+                    
+                    char_pred = model_result["character"]
+                    utf8_pred = model_result["utf8composed"]
+                    #########
+                    ensemble = [char_level_ensemble(c, utf8) for c, utf8 in zip(char_pred, utf8_pred)]
+                    model_result["ensemble(c+g_utf8)_by_char"] = ensemble
+                    #########
+
+                    ensemble = [word_level_ensemble(c, utf8) for c, utf8 in zip(char_pred, utf8_pred)]
+                    model_result["ensemble(c+g_utf8)_by_word"] = ensemble
+                                        
+                    for threshold in self.c_th_list:
+                        ensemble = [char_level_ensemble_by_threshold(c, utf8, threshold=threshold, on="left") for c, utf8 in zip(char_pred, utf8_pred)]
+                        model_result[f"ensemble(c+g_utf8)_by_char_on_char_({threshold})"] = ensemble
+                        
+                        ensemble = [word_level_ensemble_by_threshold(c, utf8, threshold = threshold, on="left") for c, utf8 in zip(char_pred, utf8_pred)]
+                        model_result[f"ensemble(c+g_utf8)_by_word_on_char_({threshold})"] = ensemble
+                        
+                    
+                    for threshold in self.g_th_list:
+                        ensemble = [char_level_ensemble_by_threshold(c, utf8, threshold=threshold, on="right" ) for c, utf8 in zip(char_pred, utf8_pred)]
+                        model_result[f"ensemble(c+g_utf8)_by_char_on_utf_({threshold})"] = ensemble
+                        
+                        ensemble = [word_level_ensemble_by_threshold(c, utf8, threshold = threshold, on="right") for c, utf8 in zip(char_pred, utf8_pred)]
+                        model_result[f"ensemble(c+g_utf8)_by_word_on_utf_({threshold})"] = ensemble
+
+                    
+                    
+                if "composed" in model_result and "character" in model_result:
+                    char_pred = model_result["character"]
+                    composed_pred = model_result["composed"]
+
+                    #########
+                    ensemble = [char_level_ensemble(c, utf8) for c, utf8 in zip(char_pred, composed_pred)]
+                    model_result["ensemble(c+g)_by_char"] = ensemble
+                    #########
+                    ensemble = [word_level_ensemble(c, utf8) for c, utf8 in zip(char_pred, composed_pred)]
+                    model_result["ensemble(c+g)_by_word"] = ensemble
+
+            else:
+                ### Ensemble
+                if "utf8composed" in model_result and "character" in model_result:
+                    
+                    char_pred = model_result["character"][0]
+                    utf8_pred = model_result["utf8composed"][0]
+                    gt = model_result["character"][1]
+                    
+                    #########
+                    ensemble = [char_level_ensemble(c, utf8) for c, utf8 in zip(char_pred, utf8_pred)]
+                    model_result["ensemble(c+g_utf8)_by_char"] = [ensemble, gt]
+                    #########
+                    ensemble = [word_level_ensemble(c, utf8) for c, utf8 in zip(char_pred, utf8_pred)]
+                    model_result["ensemble(c+g_utf8)_by_word"] = [ensemble, gt]
+                    
+                    
+                    for threshold in self.c_th_list:
+                        ensemble = [char_level_ensemble_by_threshold(c, utf8, threshold=threshold, on="left") for c, utf8 in zip(char_pred, utf8_pred)]
+                        model_result[f"ensemble(c+g_utf8)_by_char_on_char_({threshold})"] = [ensemble, gt]
+                        
+                        ensemble = [word_level_ensemble_by_threshold(c, utf8, threshold = threshold, on="left") for c, utf8 in zip(char_pred, utf8_pred)]
+                        model_result[f"ensemble(c+g_utf8)_by_word_on_char_({threshold})"] = [ensemble, gt]
+                        
+                    
+
+                    
+                    for threshold in self.g_th_list:
+                        ensemble = [char_level_ensemble_by_threshold(c, utf8, threshold=threshold, on="right" ) for c, utf8 in zip(char_pred, utf8_pred)]
+                        model_result[f"ensemble(c+g_utf8)_by_char_on_utf_({threshold})"] = [ensemble, gt]
+                        
+                        ensemble = [word_level_ensemble_by_threshold(c, utf8, threshold = threshold, on="right") for c, utf8 in zip(char_pred, utf8_pred)]
+                        model_result[f"ensemble(c+g_utf8)_by_word_on_utf_({threshold})"] = [ensemble, gt]
+                        
+
+
+                    # compare_label = [pred.replace(" ", "") == gt.replace(" ", "") for (pred, _), (gt, _) in zip(utf8_pred, gt)]
+                    # compare_pred = [g_conf >= 0.5 for c_conf, g_conf in pred[f"head_confidence_k_5"]]
+                    
+                    # print(f"min= {paddle.min()}")
+                    
+                    # for a, (c, g) in zip(compare_label, pred[f"head_confidence_k_5"]):
+                    #     if a == False:
+                    #         print(float(g))
+                    
+                    # answer = 0
+                    # for a, b in zip(compare_label, compare_pred):
+                        
+                    #     if a == b:
+                    #         answer += 1
+                    # print(f"#######{answer/len(compare_label)}")
+
+                    # ensemble = [c if compare >= 0.45 else utf8 for c, utf8, (compare) in zip(char_pred, utf8_pred, pred[f"head_compare_full"])]
+                    # model_result[f"ensemble(c+g_utf8)_by_compare_full"] = [ensemble, gt]
+                    
+                    # compare = pred["head_compare_full"]
+                    
+                    # comapre_gt = []
+                    # for char_pred, utf8_pred, gt in zip(char_pred, utf8_pred, gt):
+                    #     char_pred = char_pred.replace(" ", "")
+                    #     utf8_pred = utf8_pred.replace(" ", "")
+                    #     gt = gt.replace(" ", "")
+                        
+                    
+                    # model_result["head_compare_full"] = [compare > 0.45 for compare in pred["head_compare_full"]]
+                    # print(compare.shape)
+                    # print(compare>0.45)
+                    # for a in compare:
+                    #     print(a)
+                    # exit()
+                    # for k in [3, 5, 10, 15, 20]:                
+                    #     ensemble = [c if char_conf >= grapheme_conf else utf8 for c, utf8, (char_conf, grapheme_conf) in zip(char_pred, utf8_pred, pred[f"head_confidence_k_{k}"])]
+                    #     model_result[f"ensemble(c+g_utf8)_by_logit_k_{k}"] = [ensemble, gt]
+                        
+                    #     ensemble = [c if char_conf >= grapheme_conf else utf8 for c, utf8, (char_conf, grapheme_conf) in zip(char_pred, utf8_pred, pred[f"head_confidence2_k_{k}"])]
+                    #     model_result[f"ensemble2(c+g_utf8)_by_logit_k_{k}"] = [ensemble, gt]                        
+                    #     # if k==10:
+                    #     #     ensemble = [c if char_conf >= grapheme_conf else utf8 for c, utf8, (char_conf, grapheme_conf) in zip(char_pred, utf8_pred, pred[f"head_confidence2_k_{k}"])]
+                    #     #     model_result[f"ensemble2(c+g_utf8)_by_logit_k_{k}"] = [ensemble, gt]
                 
-                char_pred = model_result["character"][0]
-                utf8_pred = model_result["utf8composed"][0]
-                gt = model_result["character"][1]
-                #########
-                ensemble = [char_level_ensemble(c, utf8) for c, utf8 in zip(char_pred, utf8_pred)]
-                model_result["ensemble(c+g_utf8)_by_char"] = [ensemble, gt]
-                #########
-                ensemble = [word_level_ensemble(c, utf8) for c, utf8 in zip(char_pred, utf8_pred)]
-                model_result["ensemble(c+g_utf8)_by_word"] = [ensemble, gt]
                 
-            if "composed" in model_result and "character" in model_result:
-                char_pred = model_result["character"][0]
-                composed_pred = model_result["composed"][0]
-                gt = model_result["character"][1]
-                #########
-                ensemble = [char_level_ensemble(c, utf8) for c, utf8 in zip(char_pred, composed_pred)]
-                model_result["ensemble(c+g)_by_char"] = [ensemble, gt]
-                #########
-                ensemble = [word_level_ensemble(c, utf8) for c, utf8 in zip(char_pred, composed_pred)]
-                model_result["ensemble(c+g)_by_word"] = [ensemble, gt]
+                
+                
+                    # ensemble = [utf8 if grapheme_conf >= 0.7 else c for c, utf8, (char_conf, grapheme_conf) in zip(char_pred, utf8_pred, pred[f"head_confidence_k_5"])]
+                    # model_result[f"ensemble(c+g_utf8)_by_logit_full"] = [ensemble, gt]
+                    
+                    # ensemble = [c if char_conf >= grapheme_conf else utf8 for c, utf8, (char_conf, grapheme_conf) in zip(char_pred, utf8_pred, pred[f"head_confidence2_full"])]
+                    # model_result[f"ensemble2(c+g_utf8)_by_logit_full"] = [ensemble, gt]                
+                    
+                    
+                if "composed" in model_result and "character" in model_result:
+                    raise NotImplementedError
+                    char_pred = model_result["character"][0]
+                    composed_pred = model_result["composed"][0]
+                    gt = model_result["character"][1]
+                    #########
+                    ensemble = [char_level_ensemble(c, utf8) for c, utf8 in zip(char_pred, composed_pred)]
+                    model_result["ensemble(c+g)_by_char"] = [ensemble, gt]
+                    #########
+                    ensemble = [word_level_ensemble(c, utf8) for c, utf8 in zip(char_pred, composed_pred)]
+                    model_result["ensemble(c+g)_by_word"] = [ensemble, gt]
+                    
+
+                    for threshold in self.c_th_list:
+                        ensemble = [char_level_ensemble_by_threshold(c, utf8, threshold=threshold, on="left") for c, utf8 in zip(char_pred, utf8_pred)]
+                        model_result[f"ensemble(c+g)_by_char_on_char_({threshold})"] = [ensemble, gt]
+                        
+                        ensemble = [word_level_ensemble_by_threshold(c, utf8, threshold = threshold, on="left") for c, utf8 in zip(char_pred, utf8_pred)]
+                        model_result[f"ensemble(c+g)_by_word_on_char_({threshold})"] = [ensemble, gt]
+                        
+                    
+
+                    
+                    for threshold in self.g_th_list:
+                        ensemble = [char_level_ensemble_by_threshold(c, utf8, threshold=threshold, on="right" ) for c, utf8 in zip(char_pred, utf8_pred)]
+                        model_result[f"ensemble(c+g)_by_char_on_utf_({threshold})"] = [ensemble, gt]
+                        
+                        ensemble = [word_level_ensemble_by_threshold(c, utf8, threshold = threshold, on="right") for c, utf8 in zip(char_pred, utf8_pred)]
+                        model_result[f"ensemble(c+g)_by_word_on_utf_({threshold})"] = [ensemble, gt]
+                        
+                    
 
             result[model_name] = model_result
             
@@ -362,7 +507,9 @@ class CTCLabelDecode_GraphemeLabel(object):
         
         
         if label is None: # no label
-            raise NotImplementedError
+            composed = [compose_string_by_utf8(pred, pred_p) for pred, pred_p in utf8string]
+            return composed
+            # raise NotImplementedError
             # composed = list()
             # for pred, prob in utf8string:
               
@@ -1366,6 +1513,10 @@ class ABINetLabelDecode_GraphemeLabel_All(object):
         
 
         self.handling_grapheme = handling_grapheme
+        
+        self.c_th_list = [0.01, 0.03, 0.05, 0.10, 0.20, 0.25, 0.30, 0.35, 0.40, 0.50, 0.60, 0.70, 0.80, 0.90]
+        self.g_th_list = [0.50, 0.60, 0.70, 0.80, 0.90, 0.95, 0.96, 0.97, 0.98, 0.99, 0.995, 0.999]
+        
         # self.
         return
     
@@ -1426,7 +1577,8 @@ class ABINetLabelDecode_GraphemeLabel_All(object):
         result_dict = dict()
         
         for model_name, pred in preds.items():
-        
+            if model_name != "align3":
+                continue
             # logit_dict = self.split_grapheme_logits(pred)
             logit_dict = pred
             pred_dict = {key: {"align":[logit_dict[key]]} for key in self.decode_dict.keys()} 
@@ -1450,6 +1602,7 @@ class ABINetLabelDecode_GraphemeLabel_All(object):
                 char_pred = decode_dict["character"][0]
                 utf8_pred = decode_dict["utf8composed"][0]
                 gt = decode_dict["character"][1]
+                
                 #########
                 ensemble = [char_level_ensemble(c, utf8) for c, utf8 in zip(char_pred, utf8_pred)]
                 decode_dict["ensemble(c+g_utf8)_by_char"] = [ensemble, gt]
@@ -1457,7 +1610,32 @@ class ABINetLabelDecode_GraphemeLabel_All(object):
                 ensemble = [word_level_ensemble(c, utf8) for c, utf8 in zip(char_pred, utf8_pred)]
                 decode_dict["ensemble(c+g_utf8)_by_word"] = [ensemble, gt]
                 
+
+                for threshold in self.c_th_list:
+                    ensemble = [char_level_ensemble_by_threshold(c, utf8, threshold=threshold, on="left") for c, utf8 in zip(char_pred, utf8_pred)]
+                    decode_dict[f"ensemble(c+g_utf8)_by_char_on_char_({threshold})"] = [ensemble, gt]
+                    
+                    ensemble = [word_level_ensemble_by_threshold(c, utf8, threshold = threshold, on="left") for c, utf8 in zip(char_pred, utf8_pred)]
+                    decode_dict[f"ensemble(c+g_utf8)_by_word_on_char_({threshold})"] = [ensemble, gt]
+                    
+                
+                
+                
+                for threshold in self.g_th_list:
+                    ensemble = [char_level_ensemble_by_threshold(c, utf8, threshold=threshold, on="right" ) for c, utf8 in zip(char_pred, utf8_pred)]
+                    decode_dict[f"ensemble(c+g_utf8)_by_char_on_utf_({threshold})"] = [ensemble, gt]
+                    
+                    ensemble = [word_level_ensemble_by_threshold(c, utf8, threshold = threshold, on="right") for c, utf8 in zip(char_pred, utf8_pred)]
+                    decode_dict[f"ensemble(c+g_utf8)_by_word_on_utf_({threshold})"] = [ensemble, gt]
+                
+                
+                
+
+                    
+                    
+                        
             if "composed" in decode_dict and "character" in decode_dict:
+                raise NotImplementedError
                 char_pred = decode_dict["character"][0]
                 composed_pred = decode_dict["composed"][0]
                 gt = decode_dict["character"][1]
@@ -1467,7 +1645,8 @@ class ABINetLabelDecode_GraphemeLabel_All(object):
                 #########
                 ensemble = [word_level_ensemble(c, utf8) for c, utf8 in zip(char_pred, composed_pred)]
                 decode_dict["ensemble(c+g)_by_word"] = [ensemble, gt]
-        
+                
+   
         
             result_dict[model_name] = decode_dict
             # print(decode_dict)

@@ -103,7 +103,7 @@ class WorkDB(DB):
     def export(self, id, version=None, relative_to="absolute", command_to="global"):
         config = self.get_config(id, relative_to="absolute")
         
-        train_config = f"{config['trained_model_dir']}/config.yml"
+        train_config = f"{config['trained_model_dir']}/train_config.yml"
         checkpoint = self.get_model_weight(id, version=version, relative_to=relative_to)
         
         inference_model_path = self.make_inference_model_path(id, version, relative_to=relative_to)
@@ -111,7 +111,8 @@ class WorkDB(DB):
         code = self.get_command_code(id, "export")
         options = {
             "Global.save_inference_dir":inference_model_path, # 저장될 infer model의 path (without extension)
-            "Global.checkpoints":checkpoint
+            "Global.checkpoints":checkpoint,
+            "Global.pretrained_model": checkpoint,
             }
         command = f"python {code} -c {train_config} -o {' '.join([f'{k}={v}' for k, v in options.items()])}"
         print(command)
@@ -301,8 +302,8 @@ class WorkDB(DB):
     def get_model_weight(self, id, version, relative_to="absolute", no_exist_handling = False):
         if relative_to is not "absulute":
             Exception("현재 relative_to 변수가 absolute가 아니면 무조건 latest weight만 반환되는 오류가 있는데 방치해둠...")
-    
         path = self.make_model_weight_path(id, version, relative_to=relative_to)    
+        print(path)
         if Path(path).exists():    
             return path
         else:
@@ -316,13 +317,18 @@ class WorkDB(DB):
         evaluated_epoches = self.get_evaluated_epoches(id, task)
         return sorted(list(set(epoches) - set(evaluated_epoches)))
     
-    def command_split(self, type, mode, n, shuffle = False):
+    def command_split(self, type, mode, n, shuffle = False, reverse_order = False):
         with open(f"/home/works/{type}.sh") as f:
             lines = f.readlines()
+        
+        if reverse_order:
+            lines = lines[::-1]
         
         if shuffle:
             import random
             random.shuffle(lines)
+            
+        
         
         splits = [[] for i in range(n)]
         for i, line in enumerate(lines):

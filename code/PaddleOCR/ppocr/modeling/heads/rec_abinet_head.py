@@ -685,6 +685,7 @@ class ABINetHead_GraphemeLabel_B(ABINetHead_GraphemeLabel):
             # report["align"] = all_a_res
 
         return report
+import paddle.nn.initializer as init
 
 class ABINetHead_GraphemeLabel_A2(nn.Layer): # character와 grapheme에 대한 head 파트를 A 방식으로 완전히 독립적으로 수행
     def __init__(self,
@@ -716,7 +717,15 @@ class ABINetHead_GraphemeLabel_A2(nn.Layer): # character와 grapheme에 대한 h
             inner_out_channels = {g: out_channels[g] for g in graphemes}
             self.grapheme_inner_header = ABINetHead_GraphemeLabel(in_channels, inner_out_channels, d_model, nhead, num_layers, dim_feedforward, dropout, max_length, use_lang, iter_size, **kwargs)
     
-    def forward(self, x, targets=None):
+        self.max_length = max_length
+        
+        
+        model_names = ["vision"]+[f"lang{i}" for i in range(1, iter_size+1)]+[f"align{i}" for i in range(1, iter_size+1)]
+        initializer = paddle.nn.initializer.XavierUniform()
+        
+        
+    def forward(self, x, targets=None):            
+            
         result = None
         if self.character_inner_header:
             result = self.character_inner_header(x, targets)
@@ -729,7 +738,7 @@ class ABINetHead_GraphemeLabel_A2(nn.Layer): # character와 grapheme에 대한 h
                 for model_name, pred_dict in sub_result.items():
                     result[model_name].update(pred_dict)
         
-        return result
+        return result 
             
         
         

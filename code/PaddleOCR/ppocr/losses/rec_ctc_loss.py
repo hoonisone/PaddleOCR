@@ -61,26 +61,92 @@ class CTCLoss(nn.Layer):
         # 뒤에서 dict에 update해서 사용하기에 더 편할 것도 같고..
         return {'loss': loss}
 
+from ppocr.postprocess import CTCLabelDecode
+# from collections import Counter
 
 class CTCLoss_Grapheme_label(CTCLoss):
     def __init__(self, 
                  use_focal_loss=False, 
                  loss_weight=None,
+                 character_dict_path=None,
+                 use_space_char=None,
                  **kwargs):
         super(CTCLoss_Grapheme_label, self).__init__(use_focal_loss=use_focal_loss, **kwargs)
         
         assert loss_weight is not None, "loss_weight이 필요함"
         self.loss_weight = loss_weight
         
+
+        self.character_decode = CTCLabelDecode(character_dict_path=character_dict_path["character"], use_space_char=True, **kwargs)
+        self.utf8string_decode = CTCLabelDecode(character_dict_path=character_dict_path["utf8string"], use_space_char=True, **kwargs)
+        
     def forward(self, predicts, batch):
         loss_dict = {}
+
+         
         for model_name, pred in predicts.items():
+            # if any(["head_confidence" in grapheme_name for grapheme_name in pred.keys()]):
+            #     char_label = batch["text_label"]["character"]
+            #     utf_label = batch["text_label"]["utf8string"]
+            #     char_pred = self.character_decode(pred["character"])
+            #     utf_pred = self.utf8string_decode(pred["utf8string"])
+                
+            #     char_acc = sum([pred == label for (pred, _), label in zip(char_pred, char_label)])/len(char_label)
+            #     char_acc = min(max(char_acc, 0.00001), 0.99999)
+            #     utf_acc = sum([pred == label for (pred, _), label in zip(utf_pred, utf_label)])/len(utf_label)
+            #     utf_acc = min(max(utf_acc, 0.00001), 0.99999)
+                
+                
+            #     mean_acc = (char_acc+utf_acc)/2
+                
+                
+            #     char_p_weight = min(1/char_acc, 10)
+            #     char_n_weight = min(1/(1-char_acc), 10)
+                
+            #     utf_p_weight = min(1/utf_acc, 10)
+            #     utf_n_weight = min(1/(1-utf_acc), 10)
+
+                
+            #     confidence_label = [[char_label==char_pred, utf_label==utf_pred] for char_label, (char_pred, _), utf_label, (utf_pred, _) in zip(char_label, char_pred, utf_label, utf_pred)]
+            #     confidence_label = paddle.to_tensor(confidence_label, dtype="float32")############
+                
+            #     class_loss_weight = [[char_p_weight if char_label==char_pred else char_n_weight, 
+            #                     utf_p_weight if utf_label==utf_pred else utf_n_weight] for char_label, (char_pred, _), utf_label, (utf_pred, _) in zip(char_label, char_pred, utf_label, utf_pred)]
+            #     class_loss_weight = paddle.to_tensor(class_loss_weight, dtype="float32")############
+                
+                
+                  
+            #     # print(char_acc, utf_acc)
+            
             for grapheme_name, g_pred in pred.items():
+                # if "head_confidence" in grapheme_name:
+                #     if mean_acc < 0.5:
+                #         continue
+                #     confidence_loss = paddle.nn.functional.binary_cross_entropy(g_pred, confidence_label, reduction="none")
+                    
+                #     pred_acc = g_pred*confidence_label+(1-g_pred)*(1-confidence_label)                    
+                #     pred_acc = paddle.clip(pred_acc, min=0.0001, max=0.9999)
+                #     # print(pred_acc)
+                    
+                #     focal_weight = -class_loss_weight*paddle.pow(1-pred_acc, 2.0)*paddle.log(pred_acc+0.00001)
+
+
+                #     confidence_loss = focal_weight*confidence_loss
+
+                    
+                #     # for a, b, c, d, e in zip(confidence_label, g_pred, pred_acc, focal_weight, confidence_loss):
+                #     #     if a[0] != a[1]:
+                #     #         print(a, b, c, d, e)
+                    
+                #     loss_dict[f"{model_name}_{grapheme_name}"]=confidence_loss.mean()
+                    
+                # else:
                 inner_batch = [None, batch["label"][grapheme_name], batch["length"][grapheme_name]]
                 loss = super().forward(g_pred, inner_batch)["loss"]
                 loss_dict[f"{model_name}_{grapheme_name}"]=loss
 
-
         loss_dict["loss"] = sum([loss*self.loss_weight[key.split("_")[1]] for key, loss in loss_dict.items()])
         return loss_dict
+    
+
     

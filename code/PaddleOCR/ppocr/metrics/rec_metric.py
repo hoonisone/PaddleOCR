@@ -130,6 +130,9 @@ class RecMetric_GraphemeLabel(object):
         self._main_indicator = main_indicator
         
         self.inner_recmetric = {"o" : {"direct":{}, "composed":{}, "utf8composed":{}}, "x" : {"direct":{}, "composed":{}, "utf8composed":{}}}
+
+        self.c_th_list = [0.01, 0.03, 0.05, 0.10, 0.20, 0.25, 0.30, 0.35, 0.40, 0.50, 0.60, 0.70, 0.80, 0.90]
+        self.g_th_list = [0.50, 0.60, 0.70, 0.80, 0.90, 0.95, 0.96, 0.97, 0.98, 0.99, 0.995, 0.999]
         
         if "character" in self.handling_grapheme:
             for g in ["character", "initial", "medial", "final"]:
@@ -152,14 +155,21 @@ class RecMetric_GraphemeLabel(object):
                 self.inner_recmetric["x"]["utf8composed"][g] = RecMetric(main_indicator=main_indicator, is_filter=is_filter, ignore_space=False, **kwargs)
 
         if "utf8string" in self.handling_grapheme and "character" in self.handling_grapheme: # Utf8 & Character Ensemble
-            for name in ["ensemble(c+g_utf8)_by_char", "ensemble(c+g_utf8)_by_word"]:
+            for name in ["ensemble(c+g_utf8)_by_char", "ensemble(c+g_utf8)_by_word"]+[
+                f"ensemble(c+g_utf8)_by_char_on_char_({threshold})" for threshold in self.c_th_list]+[
+                f"ensemble(c+g_utf8)_by_char_on_utf_({threshold})" for threshold in self.g_th_list]+[
+                f"ensemble(c+g_utf8)_by_word_on_char_({threshold})" for threshold in self.c_th_list]+[
+                f"ensemble(c+g_utf8)_by_word_on_utf_({threshold})" for threshold in self.g_th_list]:
                 self.inner_recmetric["o"].setdefault(name, {})
                 self.inner_recmetric["x"].setdefault(name, {})
                 self.inner_recmetric["o"][name]["character"] = RecMetric(main_indicator=main_indicator, is_filter=is_filter, ignore_space=True, **kwargs)
                 self.inner_recmetric["x"][name]["character"] = RecMetric(main_indicator=main_indicator, is_filter=is_filter, ignore_space=False, **kwargs)
             
         if len(pure_grapheme) == 3 and "character" in self.handling_grapheme: # Character & Composed Ensemble
-            for name in ["ensemble(c+g)_by_char", "ensemble(c+g)_by_word"]:
+            for name in ["ensemble(c+g)_by_char", "ensemble(c+g)_by_word",
+                "ensemble(c+g)_by_logit_k_3", "ensemble(c+g)_by_logit_k_5", "ensemble(c+g)_by_logit_k_10", "ensemble(c+g)_by_logit_k_15", "ensemble(c+g)_by_logit_k_20", "ensemble(c+g)_by_logit_full",
+                "ensemble2(c+g)_by_logit_k_3", "ensemble2(c+g)_by_logit_k_5", "ensemble2(c+g)_by_logit_k_10", "ensemble2(c+g)_by_logit_k_15", "ensemble2(c+g)_by_logit_k_20", "ensemble2(c+g)_by_logit_full"
+                ]:
                 self.inner_recmetric["o"].setdefault(name, {})
                 self.inner_recmetric["x"].setdefault(name, {})
                 
@@ -167,12 +177,15 @@ class RecMetric_GraphemeLabel(object):
                 self.inner_recmetric["x"][name]["character"] = RecMetric(main_indicator=main_indicator, is_filter=is_filter, ignore_space=False, **kwargs)
             
 
+        self.ideal_ensemble_correct_num = 0
+        self.total_num = 0
+
     @property
     def main_indicator(self):
         return self._main_indicator
 
     def __call__(self, pred_label, batch=None, *args, **kwargs):
-
+        
         label_dict = {}
         for grapheme, labels in batch["text_label"].items():
             label_dict[grapheme] = [(label, [1]) for label in labels]
@@ -217,12 +230,17 @@ class RecMetric_GraphemeLabel(object):
                 pred_dict["utf8composed"]["final"].append([decomposed["final"], probability])
                 
 
-        for ensemble in ["ensemble(c+g)_by_char", "ensemble(c+g)_by_word", "ensemble(c+g_utf8)_by_char", "ensemble(c+g_utf8)_by_word"]:
+        for ensemble in ["ensemble(c+g_utf8)_by_char", "ensemble(c+g_utf8)_by_word"]+[
+                f"ensemble(c+g_utf8)_by_char_on_char_({threshold})" for threshold in self.c_th_list]+[
+                f"ensemble(c+g_utf8)_by_char_on_utf_({threshold})" for threshold in self.g_th_list]+[
+                f"ensemble(c+g_utf8)_by_word_on_char_({threshold})" for threshold in self.c_th_list]+[
+                f"ensemble(c+g_utf8)_by_word_on_utf_({threshold})" for threshold in self.g_th_list]:
             if ensemble in pred_label:
+                # print(ensemble)
                 pred_dict.setdefault(ensemble, {})
                 pred_dict[ensemble]["character"] = pred_label[ensemble][0]
             
-
+        # exit()
 
         metric_report = {}
         for pred_type, value in pred_dict.items(): # Direct, Composed
@@ -239,6 +257,18 @@ class RecMetric_GraphemeLabel(object):
                         metric_report[f"{self.capital(pred_type)}|{self.capital(g)}|{self.capital(metric_type)}|{self.capital(ignore_f)}"] = value     
                     
         self.metric = metric_report
+        
+        if "character" in pred_label and "utf8string" in pred_label:
+            
+            for (c, _), (g, _), (label, _) in zip(pred_dict["direct"]["character"], pred_dict["utf8composed"]["character"], label_dict['character']):
+                c = c.replace(" ", "")
+                g = g.replace(" ", "")
+                label = label.replace(" ", "")
+                if c == label or g == label:
+                    self.ideal_ensemble_correct_num += 1
+            
+            self.total_num += len(label_dict['character'])
+
 
     def capital(self, x):
         return x[0].upper()+x[1:]
@@ -254,9 +284,12 @@ class RecMetric_GraphemeLabel(object):
                     for metric_type, value in metric.items():
                         metric_report[f"{self.capital(pred_type)}|{self.capital(g)}|{self.capital(metric_type)}|{self.capital(ignore_f)}"] = value
         
+        metric_report["Ideal_Ensemble_Acc"] = self.ideal_ensemble_correct_num/self.total_num
         return metric_report
         
     def reset(self):
+        self.ideal_ensemble_correct_num = 0
+        self.total_num = 0
         self.metric = None     
 
 class RecMetric_GraphemeLabel_All(object):

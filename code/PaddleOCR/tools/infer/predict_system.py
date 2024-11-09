@@ -117,6 +117,9 @@ class TextSystem(object):
         filter_boxes, filter_rec_res = [], []
         for box, rec_result in zip(dt_boxes, rec_res):
             text, score = rec_result
+            print(text, score)
+            if isinstance(score, list):
+                score = np.mean(score)
             if score >= self.drop_score:
                 filter_boxes.append(box)
                 filter_rec_res.append(rec_result)
@@ -193,6 +196,11 @@ def main(args):
         for index, img in enumerate(imgs):
             starttime = time.time()
             dt_boxes, rec_res, time_dict = text_sys(img)
+
+            
+            if len(rec_res)>0 and isinstance(rec_res[0][1], list):
+                rec_res = [(text, sum(score+[0])/len(score)) for text, score in rec_res]
+            
             elapse = time.time() - starttime
             total_time += elapse
             if len(imgs) > 1:
@@ -204,6 +212,9 @@ def main(args):
                     str(idx) + "  Predict time of %s: %.3fs" % (image_file,
                                                                 elapse))
             for text, score in rec_res:
+                # if isinstance(score, list):
+                #     score = sum(score)/len(score)
+                
                 logger.debug("{}, {:.3f}".format(text, score))
 
             res = [{
@@ -224,8 +235,11 @@ def main(args):
                 boxes = dt_boxes
                 txts = [rec_res[i][0] for i in range(len(rec_res))]
                 scores = [rec_res[i][1] for i in range(len(rec_res))]
-
-            
+                # print(scores)
+                print("txts", txts)
+                print("scores", scores)
+                print("boxes", boxes)
+                
                 draw_img = draw_ocr_box_txt(
                     image,
                     boxes,

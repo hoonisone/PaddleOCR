@@ -254,6 +254,30 @@ def main(config, device, logger, vdl_writer):
     # start train
     # print(model.backbone.conv1.weight[0])
     # exit()
+    
+    
+    ############################################################################## Meta Model Training only
+    # if config['Global'].get('train_meta_model', False):
+    #     if config["Architecture"]["algorithm"] == "SVTR_GraphemeLabel":
+    #         for param in model.parameters():
+    #             param.stop_gradient = True
+    #         for name, param in model.head.named_parameters():
+    #             if name.split(".")[0] in ["character_fc", "utf8sring_fc"]:
+    #                 pass
+    #             else:
+    #                 param.stop_gradient = False
+    #     elif config["Architecture"]["algorithm"] == "ABINet_Grapheme":
+    #         for param in model.parameters():
+    #             param.stop_gradient = True
+    #         for name, param in model.head.named_parameters():
+    #             if name.split(".")[0] in ["character_inner_header", "grapheme_inner_header"]:
+    #                 pass
+    #             else:
+    #                 param.stop_gradient = False
+                    
+    #     else:
+    #         raise NotImplementedError("Not Implemented Algorithm")
+    
     program.train(config, train_dataloader, valid_dataloader, device, model,
                   loss_class, optimizer, lr_scheduler, post_process_class,
                   eval_class, pre_best_model_dict, logger, vdl_writer, scaler,

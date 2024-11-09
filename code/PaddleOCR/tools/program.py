@@ -163,10 +163,31 @@ def train(config,
                         preds = model(images)
                 preds = to_float32(preds)
                 loss = loss_class(preds, batch)
+
                 avg_loss = loss['loss']
                 scaled_avg_loss = scaler.scale(avg_loss)
                 scaled_avg_loss.backward()
                 scaler.minimize(optimizer, scaled_avg_loss)
+                
+                    
+                # if loss_others == None:
+                #     avg_loss = loss['loss']
+                #     scaled_avg_loss = scaler.scale(avg_loss)
+                #     scaled_avg_loss.backward()
+                #     scaler.minimize(optimizer, scaled_avg_loss)
+                # else:
+                #     avg_loss = loss['loss']
+                #     scaled_avg_loss = scaler.scale(avg_loss)
+                #     scaled_avg_loss.backward()
+                    
+                #     for loss_other in loss_others:
+                #         loss_other = scaler.scale(loss_other)
+                #         loss_other.backward()
+                        
+                #     scaler.step(optimizer)
+                #     scaler.update()
+                    
+                
             else:
                 if model_type == 'table' or extra_input: # 현재 사용하는 rec는 extra_input이 있음
                     preds = model(images, data=batch)
