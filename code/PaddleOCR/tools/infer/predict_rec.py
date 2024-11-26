@@ -14,9 +14,9 @@
 import os
 import sys
 from PIL import Image
-__dir__ = os.path.dirname(os.path.abspath(__file__))
-sys.path.append(__dir__)
-sys.path.insert(0, os.path.abspath(os.path.join(__dir__, '../..')))
+# __dir__ = os.path.dirname(os.path.abspath(__file__))
+# sys.path.append(__dir__)
+# sys.path.insert(0, os.path.abspath(os.path.join(__dir__, '../..')))
 
 os.environ["FLAGS_allocator_strategy"] = 'auto_growth'
 
@@ -32,7 +32,7 @@ from ppocr.postprocess import build_post_process
 from ppocr.utils.logging import get_logger
 from ppocr.utils.utility import get_image_file_list, check_and_read
 
-logger = get_logger()
+# logger = get_logger()
 
 
 class TextRecognizer(object):

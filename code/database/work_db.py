@@ -5,7 +5,7 @@ import yaml
 
 from .labelset_db import LabelsetDB
 from .model_db import ModelDB
-from .db import DB
+from .db import DB, DB2, Record2
 import copy
 import project
 from functools import reduce
@@ -14,6 +14,10 @@ import matplotlib.pyplot as plt
 import shutil
 import itertools
 import fcntl
+import pandas as pd
+from tqdm import tqdm
+import json
+
 
 
 def smooth(x, window):
@@ -41,8 +45,9 @@ class WorkDB(DB):
         if relative_to:
             for k in ["inference_result_dir", "trained_model_dir", "train_config", "report_file", "export_dir", "train_cache_file", "eval_cache_file"]:
                 config[k] = self.relative_to(id, config[k], relative_to=relative_to)    
-        return config    
-    
+        return config      
+        
+        
     def get_df(self):
         ides = self.get_all_id()
         df = pd.DataFrame()
@@ -394,6 +399,7 @@ class WorkDB(DB):
         df.sort_values(["task", "version"], inplace=True)
         self.save_report_df(id, df)
     
+    
     def eval_one(self, id, version, task, relative_to="absolute", command_to="global", report_to="local", check_result=True, check_weight=True, labelsets=None, data_dir=None, save = True):
 
 
@@ -583,6 +589,39 @@ class WorkDB(DB):
         else:
             return None
         
+    def get_infer_result_path(self, id, version, task):
+        print("!!!  제대로 구현 안함")
+        config = self.get_config(id, relative_to="absolute")
+        return config["inference_result_dir"]
+    
+    def get_infer_result(self, id, version, task):
+        path = self.get_infer_result_path(id, version, task)
+        print(path)
+        with open(path) as f:
+            lines = [line.strip().split("\t") for line in f.readlines()]
+            lines = [[path, json.loads(label)] for path, label in lines]
+            return lines
+        
+    def get_infer_result_df(self, id, version, task):
+        result_dict = dict()
+        infer_result = self.get_infer_result(id, version, task)
+        for img_path, pred in tqdm(infer_result):
+            for model_name, pred in pred.items():
+                for method, pred in pred.items():
+                    name = f"{model_name}_{method}"
+                    p_name = f"{name}_prob"
+                    result_dict.setdefault(name, [])
+                    result_dict.setdefault(p_name, [])
+                    text, prob = pred[0]
+                    
+                    result_dict[name].append(text)
+                    result_dict[p_name].append(prob)
+                    # result.dict[p_name].append(json.dumps(prob))
+            result_dict.setdefault("image", [])
+            result_dict["image"].append(img_path)
+        return pd.DataFrame(result_dict)
+
+        
 
     def infer(self, id, version = "best", task="test", relative_to="absolute", command_to="global", data_dir=None, labelsets=None, save_path = None):
         assert task in ["train", "eval", "test"]
@@ -728,6 +767,419 @@ class WorkDB(DB):
     # print(models)
     # print(models[0])
     # print(mdb.get(models[0]))
+
+
+class WorkDB2(DB2):
+    def __init__(self, db_name = "works", config_name = "work_config.yml"):
+        super().__init__(db_name, config_name)
+        
+        self.path_dir = {
+            "eval_bash": self.db_dir/"eval.sh",
+            "eval_result": self.db_dir/"eval_result.csv",
+            "infer_bash": self.db_dir/"infer.sh",
+        }
+        
+    def get_record(self, record_id):
+        return WorkRecord2(self, record_id)
+
+    def make_empty_eval_file(self, mode):
+        assert mode in ["train", "eval", "infer", "export"]
+        with open(f"/home/works/{mode}.sh", "w") as f:
+            f.write("")
+    
+    def command_split(self, task, mode, n, shuffle = False, reverse_order = False):
+        """
+        command bash 파일의 명령어를 n개로 쪼개어 저장
+        mode: 파일 읽기 모드 (누적할 지 새로 쓸 지 결정)
+        """
+        with open(f"/home/works/{task}.sh") as f:
+            lines = f.readlines()
+        
+        if reverse_order:
+            lines = lines[::-1]
+        
+        if shuffle:
+            import random
+            random.shuffle(lines)
+            
+        
+        
+        splits = [[] for i in range(n)]
+        for i, line in enumerate(lines):
+            splits[i%n].append(line)
+                
+                
+
+        for i, split in enumerate(splits):
+            with open(f"/home/works/{task}{i}.sh", mode) as f:
+                for line in split:
+                    f.write(line)  
+                    
+                    
+    def read_commands(self, task):
+        path = self.get_path(f"{task}_bash")
+        with open(path) as f:
+            lines = f.readlines()
+        return lines
+    
+    def print_commands_num(self, task):
+        lines = self.read_commands(task)
+        print(f"{task} commands: ", len(lines))
+
+class WorkRecord2(Record2):
+    
+    WEIGHT_EXTENSION = "pdparams"
+
+    def __init__(self, db, record_id):
+        super().__init__(db, record_id)
+        
+        self.path_dir = {
+            "eval_bash": self.record_dir/"eval.sh",
+            "infer_bash": self.record_dir/"infer.sh",
+            "eval_result": self.record_dir/"eval_result.csv",            
+            "infer_det_command": self.project_dir/"code/PaddleOCR/tools/infer_det.py",
+            "infer_rec_command": self.project_dir/"code/PaddleOCR/tools/infer_rec.py"
+        }
+        
+        
+        
+        
+    def get_config(self, relative_to=None):
+        config = super().get_config()
+        
+        if relative_to:
+            for k in ["inference_result_dir", "trained_model_dir", "train_config", "report_file", "export_dir", "train_cache_file", "eval_cache_file"]:
+                config[k] = self.relative_to(config[k], current_relative="record", target_relative=relative_to)    
+        return config    
+    
+
+    
+    def validate_task_value(self, task, make_error = True):
+        TASK = ["train", "eval", "infer", "export"]
+        self.validate_value_by_valid_value_list(task, TASK, make_error = make_error)    
+
+    def validate_save_to_value(self, task, make_error = True):
+        SAVE_TO = ["global", "local"]
+        self.validate_value_by_valid_value_list(task, SAVE_TO, make_error = make_error)    
+        
+
+    def validate_version_value(self, version, make_error = True): 
+        TEXT_VERSION = ["best", "latest", "origin", "last"]
+        
+        # validation step
+        if isinstance(version, str):
+            validity = version in TEXT_VERSION
+        elif isinstance(version, int):
+            validity = 0 < version
+       
+        # validity handling step 
+        if make_error:
+            assert validity, f"version should be in {TEXT_VERSION} or positive integer, but {version} is given"
+        else:
+            return validity
+        
+    def get_command_code(self, task, relative_to="absolute"):
+        self.validate_task_value(task)
+        
+        if task == "train":
+            command = "code/PaddleOCR/tools/train.py"
+        elif task == "eval":
+            command = "code/PaddleOCR/tools/eval.py"
+        elif task == "infer":
+            command = self.get_config()["task"]
+            if "STD" in task:
+                command = "code/PaddleOCR/tools/infer_det.py"
+            elif "STR" in task:
+                command = "code/PaddleOCR/tools/infer_rec.py"
+            else:
+                raise NotImplementedError
+
+        elif task == "export":
+            command = "code/PaddleOCR/tools/export_model.py"
+        else:
+            raise NotImplementedError
+        
+        command =  self.relative_to(command, current_relative = "project", target_relative=relative_to)
+        return command
     
     
+
+                
+    def get_eval_result(self, version, labelset, task):
+        # eval 결과중 조건에 맞는 값 반환
+        df = self.get_eval_result_df()
+        df = df[(df["work_id"]==self.record_id) & (df["version"]==version) & (df["labelset"]==labelset)& (df["task"]==task)]
+        if len(df) == 0:
+            return None
+        else:
+            return df.iloc[0]
     
+    def get_eval_result_df(self):
+        config = self.get_config(relative_to="absolute")
+        
+        eval_result_path = self.get_path("eval_result", level = "record") # record 끼리 result file 구분
+        if Path(eval_result_path).exists():
+            return pd.read_csv(eval_result_path, index_col=0)
+        else:
+            return pd.DataFrame({"work_id":[], "version":[], "labelset":[], "task":[]})
+    
+    def save_eval_result_df(self, df):
+        eval_result_path = self.get_path("eval_result", level = "record")
+        df.to_csv(eval_result_path)       
+    
+    
+    def is_evaluated(self, version, labelset, task):
+        return self.get_eval_result(version, labelset, task) is not None
+    
+
+    
+    def get_model_weight_path(self, version, relative_to="absolute", validate=True):
+        # validate: True이면 weight path에 대해 유효성 검사를 수행하고, False이면 결과값을 반환
+        
+        self.validate_version_value(version)
+        
+        config = self.get_config()
+        
+        model_dir = Path(config["trained_model_dir"])
+        if version == "best":
+            path = model_dir/f"best_model/model.{self.WEIGHT_EXTENSION}"
+        elif version == "latest":
+            path = model_dir/f"latest.{self.WEIGHT_EXTENSION}"      
+        elif version == "origin": # 처음 모델 가중치 그대로 (초기화 또는 다른 테스크에서 pretrained)
+            model_config = ModelDB().get_config(config["model"], relative_to=relative_to)
+            path = str(model_config["pretrained_model_weight"])
+            path = path[:-8]+extension
+        elif version == "last":
+            path = model_dir/f"iter_epoch_{self.get_max_epoch()}.{self.WEIGHT_EXTENSION}"
+        else:
+            path = model_dir/f"iter_epoch_{version}.{self.WEIGHT_EXTENSION}"
+        
+        if validate:
+            absolute_path = self.relative_to(path, current_relative = "record", relative_to = "absolute")
+            assert Path(absolute_path).exists(), f"weight path '{absolute_path}' does not exist"
+        
+        return self.relative_to(path, current_relative = "record", target_relative = relative_to)
+    
+    
+    # EVAL_COMMAND_PATH = ""
+    
+    def get_default_labelset(self):
+        config = self.get_config()
+        return config["labelsets"][0]
+    
+    def eval_one(self, version, labelset=None, task=None, 
+                 relative_to="absolute", command_to="global", report_to="local", 
+                 check_result=True, check_weight=True, save = True, verbose=False):
+        '''
+            check_result: 결과가 이미 있으면 실행하지 않음
+            check_weight: weight이 없으면 실행하지 않음
+            command_to, report_to = {global, local} => work 별로 구분할 지 말지
+        '''
+        
+        if labelset == None:
+            labelset = self.get_default_labelset()
+            
+        self.validate_task_value(task)
+        
+        
+        # evaluation result handling step 
+        if check_result and self.is_evaluated(version, labelset, task):
+            print(f"(id:{self.record_id}, version:{version}, labelset:{labelset}, task:{task}) already evaluated")
+            return
+
+        # model weight handling step
+        model_weight = self.get_model_weight_path(version, relative_to=relative_to, validate=False)
+        if check_weight:
+            absolute_model_weight = self.relative_to(model_weight, current_relative=relative_to, target_relative="absolute")
+            if not Path(absolute_model_weight).exists():
+                print(f"(id:{self.record_id}, version:{version} has no weight")
+                return
+        model_weight = ".".join(model_weight.split(".")[:-1]) # 확장자 제거 (확장자가 없는 경로가 필요함)
+
+
+        # command code handling step(코드 실행 파이썬 파일 경로)
+        code = self.get_command_code("eval", relative_to=relative_to)
+        
+        
+        # config handling step
+        config = self.get_config(relative_to=relative_to)
+        
+        # labelset handling step
+        labelset_config = LabelsetDB().get_config(labelset, relative_to=relative_to)
+        data_dir = labelset_config["dataset_dir"]
+        labelset_file = labelset_config["label"][task]
+        
+        train_config = config["train_config"]
+
+
+        options = {
+                "Global.work_id":self.record_id,
+                "Global.labelset":labelset,
+                "Global.version":version,
+                "Global.eval_task":task,
+                "Global.checkpoints":model_weight,
+                "Global.save_model_dir":config["trained_model_dir"],
+                "Global.use_amp":False,
+                "Eval.dataset.data_dir": data_dir,
+                "Eval.dataset.label_file_list":f"{labelset_file}",
+                "Eval.save":save,
+                "Eval.check_exist":check_result,
+                # "Eval.dataset.cache_file": config["eval_cache_file"]
+                }
+        
+        command = f"python {code} -c {train_config} -o {' '.join([f'{k}={v}' for k, v in options.items()])}"
+        if verbose:
+            print(command)
+        
+        save_path = self.get_path("eval_bash", level = "db") # record끼리 명령어 파일 공유
+        with open(save_path, "a") as f:
+            f.write(command+"\n")     
+            
+            
+    def get_all_epochs(self):
+        config = self.get_config(relative_to="absolute")
+        model_dir = Path(config["trained_model_dir"])
+        weight_paths = list(model_dir.glob(f"iter_epoch_*.{self.WEIGHT_EXTENSION}"))
+        epochs = sorted([int(path.stem[11:], base=0) for path in weight_paths])
+        return epochs
+    
+    def get_max_epoch(self):
+            epochs = self.get_all_epochs(self.record_id)
+            return max(epochs) if len(epochs) > 0 else 0        
+            
+    
+    def get_evaluated_epochs(self, labelset, task):
+        df = self.get_eval_result_df()
+        df = df[(df["labelset"] == labelset) & (df["task"] == task)]
+        return df["version"].unique()
+    
+    def get_unevaluated_epochs(self, labelset, task):
+        all_epochs = self.get_all_epochs()
+        evaluated_epochs = self.get_evaluated_epochs(labelset, task)        
+        return sorted(list(set(all_epochs) - set(evaluated_epochs)))
+
+
+    def eval_all(self, labelset=None, task=None, 
+                 relative_to="absolute", command_to="global", report_to="local", 
+                 check_result=True, check_weight=True, save = True, filter = None, verbose=False):
+        """
+            labelset-task 에 대하여 학습된 모든 epoch에 대해 평가를 수행
+            filter: 전체 epoch중 어떤 epoch에 대해 평가를 수행할 지 결정하는 함수
+        """
+        
+        if labelset == None:
+            labelset = self.get_default_labelset()
+        
+        self.validate_task_value(task)
+        
+        # unevaluated epochs handling step
+        unevaluated_epochs =  self.get_unevaluated_epochs(labelset, task)
+        if filter is not None:
+            unevaluated_epochs = [epoch for epoch in unevaluated_epochs if filter(epoch)]
+        
+        # make eval command handling step
+        for version in unevaluated_epochs:    
+            self.eval_one(version, labelset, task, 
+                          relative_to=relative_to, command_to=command_to, report_to=report_to, 
+                          check_result=check_result, check_weight=check_weight, save = save, verbose=verbose)
+                
+    
+ 
+    
+    
+
+    def infer(self, version, labelset, task, relative_to="absolute", command_to="global",
+              check_result=True, check_weight=True, verbose=False):
+        # argument validation step
+        self.validate_version_value(version)
+        self.validate_task_value(task)
+        
+        
+        # infer command file
+        config = self.get_config(id, relative_to=relative_to)
+        if "STR" in config["task"]:
+            code = self.get_path("infer_rec_command")
+        elif "STD" in config["task"]:
+            code = self.get_path("infer_det_command")
+        
+        if labelset == None: # 입력이 없으면 디폴트로 학습용으로 등록된 레이블셋에 대해 수행
+            labelset = self.get_default_labelset()
+        
+
+        train_config = config["train_config"]
+        
+        
+        model_weight_path = self.get_model_weight_path(version, relative_to=relative_to, validate=False)
+        if check_weight:
+            absolute_model_weight = self.relative_to(model_weight, current_relative=relative_to, target_relative="absolute")
+            if not Path(absolute_model_weight).exists():
+                print(f"(id:{self.record_id}, version:{version} has no weight")
+                return
+        
+        model_weight_path = str(Path(model_weight_path).stem).replace("\\", "/") # 확장자 제거
+        
+        
+        # labelset handling step
+        labelset_config = LabelsetDB().get_config(labelset, relative_to=relative_to)
+        data_dir = labelset_config["dataset_dir"]
+        labelset_file = labelset_config["infer"][task]
+        
+        save_path = str(Path(config["inference_result_dir"])/version/labelset).replace("\\", "/")
+        
+        if check_result and Path(save_path).exists():
+            print(f"(id:{self.record_id}, version:{version}, labelset:{labelset}, task:{task}) already infered")
+            return
+
+
+        options = {
+            "Global.pretrained_model":model_weight,
+            "Global.checkpoints":model_weight,
+            "Global.save_model_dir":model_weight, 
+            "Global.save_res_path":save_path, 
+            
+            "Infer.data_dir":data_dir,
+            "Infer.infer_file_list":labelset_file,
+        }
+
+        command = f"python {code} -c {train_config} -o {' '.join([f'{k}={v}' for k, v in options.items()])}" # train에 대해서도 할 수 있게 수정해야 함
+        if verbose:
+            print(command)
+
+        save_path = self.get_path("infer_bash", level = "db") # record끼리 명령어 파일 공유
+        with open(save_path, "a") as f:
+            f.write(command+"\n")
+            
+    def get_best_epoch(self, labelset=None, task=None, metric=None):
+        
+        self.validate_task_value(task)
+        
+        if labelset == None:
+            labelset = self.get_default_labelset()
+            
+        if metric is None:
+            config = self.get_config()
+            metric = config["metric"]
+        
+        df = self.get_eval_result_df()
+        df.reset_index(inplace=True)
+        if len(df) == 0:
+            return None
+        df = df[(df["task"] == task) & (df["version"].apply(lambda x : isinstance(x, int)))]
+        return df.loc[df[metric].idxmax()].version
+    
+    def report_eval_result(self, report):
+        # 기존 데이터 로드
+        
+
+        with open("/home/works/eval_lack", 'w') as lock_file:
+            fcntl.flock(lock_file, fcntl.LOCK_EX) 
+            try:
+                df = self.get_eval_result_df()
+                new_df = pd.DataFrame([report])
+                new_df = pd.concat([df, new_df])
+                self.save_eval_result_df(new_df)
+            finally:
+                fcntl.flock(lock_file, fcntl.LOCK_UN)
+                
+    def remove_eval_result_df(self):
+        Path(self.get_path("eval_result", level = "record")).unlink()

@@ -262,3 +262,17 @@ class SequenceEncoder(nn.Layer):
             x = self.encoder(x)
             x = self.encoder_reshape(x)
             return x
+
+class SequenceEncoder_Grapheme_Neck(nn.Layer): # 임시로 Character, UTF8 compose 에 대한 앙상블만 구현함
+    def __init__(self, in_channels, encoder_type, hidden_size=48, **kwargs):
+        super(SequenceEncoder_Grapheme_Neck, self).__init__()
+        
+        self.character_encoder = SequenceEncoder(in_channels, encoder_type, hidden_size, **kwargs)
+        self.utf8string_encoder = SequenceEncoder(in_channels, encoder_type, hidden_size, **kwargs)
+    
+        self.out_channels = self.character_encoder.out_channels
+        
+    def forward(self, x):
+        character = self.character_encoder(x)
+        utf8string = self.utf8string_encoder(x)
+        return {"character": character, "utf8string": utf8string}

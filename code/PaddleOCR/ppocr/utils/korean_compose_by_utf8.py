@@ -147,7 +147,7 @@ def char_level_ensemble_by_threshold(pred1, pred2, threshold=0.5, on = "left"):
 
 def word_level_ensemble(pred1, pred2):
     try:
-        p1 = reduce(mul, pred1[1])
+        p1 = reduce(mul, pred1[0])
         p2 = reduce(mul, pred2[1])
         if p1 >= p2:
             return pred1
@@ -160,7 +160,7 @@ def word_level_ensemble(pred1, pred2):
 
 def word_level_ensemble_by_threshold(pred1, pred2, threshold=0.5, on = "left"):
     try:
-        p1 = reduce(mul, pred1[1])
+        p1 = reduce(mul, pred1[0])
         p2 = reduce(mul, pred2[1])
         # if p1 >= p2:
         

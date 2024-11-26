@@ -19,7 +19,7 @@ def build_neck(config):
     from .db_fpn import DBFPN, RSEFPN, LKPAN
     from .east_fpn import EASTFPN
     from .sast_fpn import SASTFPN
-    from .rnn import SequenceEncoder
+    from .rnn import SequenceEncoder, SequenceEncoder_Grapheme_Neck
     from .pg_fpn import PGFPN
     from .table_fpn import TableFPN
     from .fpn import FPN
@@ -32,7 +32,7 @@ def build_neck(config):
     support_dict = [
         'FPN', 'FCEFPN', 'LKPAN', 'DBFPN', 'RSEFPN', 'EASTFPN', 'SASTFPN',
         'SequenceEncoder', 'PGFPN', 'TableFPN', 'PRENFPN', 'CSPPAN', 'CTFPN',
-        'RFAdaptor', 'FPN_UNet'
+        'RFAdaptor', 'FPN_UNet', "SequenceEncoder_Grapheme_Neck"
     ]
 
     module_name = config.pop('name')

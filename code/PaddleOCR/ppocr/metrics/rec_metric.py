@@ -26,6 +26,38 @@ from tomlkit import item
 # from PaddleOCR.tools import infer_kie_token_ser_re
 from ppocr.utils.korean_grapheme_label import compose_korean_char, decompose_korean_char, grapheme_edit_dis
 
+def hirschberg_lcs(X, Y):
+    def lcs_length(X, Y):
+        m, n = len(X), len(Y)
+        curr = [0] * (n + 1)
+        for i in range(1, m + 1):
+            prev = curr[:]
+            for j in range(1, n + 1):
+                if X[i - 1] == Y[j - 1]:
+                    curr[j] = prev[j - 1] + 1
+                else:
+                    curr[j] = max(curr[j], prev[j])
+        return curr
+
+    def hirschberg(X, Y):
+        if len(X) == 0:
+            return ""
+        elif len(Y) == 0:
+            return ""
+        elif len(X) == 1 or len(Y) == 1:
+            for x in X:
+                if x in Y:
+                    return x
+            return ""
+        else:
+            i = len(X) // 2
+            L1 = lcs_length(X[:i], Y)
+            L2 = lcs_length(X[i:][::-1], Y[::-1])
+            k = max(range(len(Y) + 1), key=lambda j: L1[j] + L2[len(Y) - j])
+            return hirschberg(X[:i], Y[:k]) + hirschberg(X[i:], Y[k:])
+
+    return hirschberg(X, Y)
+
 class RecMetric(object):
     def __init__(self,
                  main_indicator='acc',
@@ -41,6 +73,29 @@ class RecMetric(object):
 
         self.test_print = test_print
         
+        self.label_char = dict()
+        self.pred_char = dict()
+        self.answer_char = dict()
+        
+        self.char_set_path_dict = {
+            # "full": "/home/labelsets/aihub_rec_full_horizontal_clean_80:10:10/char_set_full.txt",
+            # "few":"/home/labelsets/aihub_rec_full_horizontal_clean_80:10:10/char_set_few.txt",
+            # "medium":"/home/labelsets/aihub_rec_full_horizontal_clean_80:10:10/char_set_medium.txt",
+            # "many":"/home/labelsets/aihub_rec_full_horizontal_clean_80:10:10/char_set_many.txt",
+            
+            "zero":"/home/code/PaddleOCR/ppocr/metrics/remove_30_zero_char_set.txt"
+        }
+
+        self.char_set_dict = {
+            
+        }
+        for name, path in self.char_set_path_dict.items():
+            with open(path) as f:
+               self.char_set_dict[name] = [line.strip() for line in f.readlines()]
+
+        
+        # print(self.char_set_dict)
+        # exit()
         
     def _normalize_text(self, text):
         text = ''.join(
@@ -54,7 +109,9 @@ class RecMetric(object):
         # preds: [(test, acc), ...]
         # labels: [(test, acc), ...]
 
-
+        label_char = dict()
+        pred_char = dict()
+        answer_char = dict()
 
         correct_num = 0
         all_num = 0
@@ -77,20 +134,90 @@ class RecMetric(object):
             if pred == target:
                 correct_num += 1
 
-
-
-            # print(pred, target, pred==target, Levenshtein.normalized_distance(pred, target), grapheme_edit_dis(pred, target))
+            for c in pred:
+                if c not in pred_char:
+                    pred_char[c] = 0
+                    self.pred_char[c] = 0
+                pred_char[c] += 1
+                self.pred_char[c] += 1
+            for c in target:
+                if c not in label_char:
+                    label_char[c] = 0
+                    self.label_char[c] = 0
+                label_char[c] += 1
+                self.label_char[c] += 1
+            for c in hirschberg_lcs(pred, target):
+                if c not in answer_char:
+                    answer_char[c] = 0
+                    self.answer_char[c] = 0       
+                answer_char[c] += 1
+                self.answer_char[c] += 1
             
             all_num += 1
+            
+            
         self.correct_num += correct_num
         self.all_num += all_num
         self.norm_edit_dis += norm_edit_dis
         self.grapheme_norm_edit_dis += grapheme_norm_edit_dis
-        return {
+        report =  {
             'acc': correct_num / (all_num + self.eps),
             'C_NED': 1 - norm_edit_dis / (all_num + self.eps),
             'G_NED': 1 - grapheme_norm_edit_dis / (all_num + self.eps)
         }
+        
+        for name, char_set in self.char_set_dict.items():
+            precisions = []
+            recalls = []
+            f1_scores = []
+            
+            total_label = 0
+            total_answer = 0
+            total_pred = 0
+            for char in char_set:
+                if char in list(label_char.keys()): # 레이블이 있으면 recall 계산 가능
+                    recall = answer_char.get(char, 0) / (label_char.get(char, 0) + self.eps)
+                    recalls.append(recall)
+                else:
+                    recall = 0
+                    
+                    
+                if char in list(pred_char.keys()): # 예측된 정답이 있으면 precision 계산 가능
+                    precision = answer_char.get(char, 0) / (pred_char.get(char, 0) + self.eps)
+                    precisions.append(precision)
+                else:
+                    precision = 0    
+                
+                
+                if char in list(label_char.keys()) or char in list(pred_char.keys()): # 정답 또는 레이블 하나라도 있어야 f1-score 게산 가능
+                    
+                    f1_score = 2 * recall * precision / (recall + precision + self.eps)
+                    f1_scores.append(f1_score)
+                    
+                    
+                total_label += label_char.get(char, 0)
+                total_answer += answer_char.get(char, 0)
+                total_pred += pred_char.get(char, 0)
+        
+            mean_f1_score = sum(f1_scores) / (len(f1_scores) + self.eps)
+            mean_precision = sum(precisions) / (len(precisions) + self.eps)
+            mean_recall = sum(recalls) / (len(recalls) + self.eps)
+            
+            overall_precision = total_answer/(total_pred+self.eps)
+            overall_recall = total_answer/(total_label+self.eps)
+            overall_f1_score = 2 * overall_recall * overall_precision / (overall_recall + overall_precision + self.eps)
+            
+            report[f"mean_precision_{name}"] = mean_precision
+            report[f"mean_recall_{name}"] = mean_recall
+            report[f"mean_f1_score_{name}"] = mean_f1_score
+            report[f"overall_precision_{name}"] = overall_precision
+            report[f"overall_recall{name}"] = overall_recall
+            report[f"overall_f1_score{name}"] = overall_f1_score
+            
+            
+            
+        
+        return report
 
     def get_metric(self):
         """
@@ -104,14 +231,79 @@ class RecMetric(object):
         norm_edit_dis = 1.0 - self.norm_edit_dis / (self.all_num + self.eps) if self.all_num > 0 else 0.0
         grapheme_norm_edit_dis = 1.0 - self.grapheme_norm_edit_dis / (self.all_num + self.eps) if self.all_num > 0 else 0.0
 
+        report = {'acc': acc, 'C_NED': norm_edit_dis, "G_NED":grapheme_norm_edit_dis}
+    
+
+            
+            
+            
+        for name, char_set in self.char_set_dict.items():
+            precisions = []
+            recalls = []
+            f1_scores = []
+            
+            total_label = 0
+            total_answer = 0
+            total_pred = 0
+            for char in char_set:
+                if char in list(self.label_char.keys()): # 레이블이 있으면 recall 계산 가능
+                    recall = self.answer_char.get(char, 0) / (self.label_char.get(char, 0) + self.eps)
+                    recalls.append(recall)
+                else:
+                    recall = 0
+                    
+                    
+                if char in list(self.pred_char.keys()): # 예측된 정답이 있으면 precision 계산 가능
+                    precision = self.answer_char.get(char, 0) / (self.pred_char.get(char, 0) + self.eps)
+                    precisions.append(precision)
+                else:
+                    precision = 0    
+                
+                
+                if char in list(self.label_char.keys()) or char in list(self.pred_char.keys()): # 정답 또는 레이블 하나라도 있어야 f1-score 게산 가능
+                    
+                    f1_score = 2 * recall * precision / (recall + precision + self.eps)
+                    f1_scores.append(f1_score)
+                    
+                    
+                total_label += self.label_char.get(char, 0)
+                total_answer += self.answer_char.get(char, 0)
+                total_pred += self.pred_char.get(char, 0)
+        
+            mean_f1_score = sum(f1_scores) / (len(f1_scores) + self.eps)
+            mean_precision = sum(precisions) / (len(precisions) + self.eps)
+            mean_recall = sum(recalls) / (len(recalls) + self.eps)
+            
+            overall_precision = total_answer/(total_pred+self.eps)
+            overall_recall = total_answer/(total_label+self.eps)
+            overall_f1_score = 2 * overall_recall * overall_precision / (overall_recall + overall_precision + self.eps)
+            
+            report[f"mean_precision_{name}"] = mean_precision
+            report[f"mean_recall_{name}"] = mean_recall
+            report[f"mean_f1_score_{name}"] = mean_f1_score
+            report[f"overall_precision_{name}"] = overall_precision
+            report[f"overall_recall{name}"] = overall_recall
+            report[f"overall_f1_score{name}"] = overall_f1_score
+            
+            
+            
+            
+            
+        
+        
         self.reset()
-        return {'acc': acc, 'C_NED': norm_edit_dis, "G_NED":grapheme_norm_edit_dis}
+        return report
+
 
     def reset(self):
         self.correct_num = 0
         self.all_num = 0
         self.norm_edit_dis = 0
         self.grapheme_norm_edit_dis = 0
+        self.label_char = dict()    
+        self.pred_char = dict()
+        self.answer_char = dict()
+
 
 class RecMetric_GraphemeLabel(object):
     def __init__(self,
@@ -131,8 +323,11 @@ class RecMetric_GraphemeLabel(object):
         
         self.inner_recmetric = {"o" : {"direct":{}, "composed":{}, "utf8composed":{}}, "x" : {"direct":{}, "composed":{}, "utf8composed":{}}}
 
-        self.c_th_list = [0.01, 0.03, 0.05, 0.10, 0.20, 0.25, 0.30, 0.35, 0.40, 0.50, 0.60, 0.70, 0.80, 0.90]
-        self.g_th_list = [0.50, 0.60, 0.70, 0.80, 0.90, 0.95, 0.96, 0.97, 0.98, 0.99, 0.995, 0.999]
+        # self.c_th_list = [0.005, 0.01, 0.03, 0.05, 0.10, 0.20, 0.30, 0.40, 0.50, 0.60, 0.70, 0.80, 0.90, 0.95, 0.99, 0.995, 0.999]
+        # self.g_th_list = [0.005, 0.01, 0.03, 0.05, 0.10, 0.20, 0.30, 0.40, 0.50, 0.60, 0.70, 0.80, 0.90, 0.95, 0.99, 0.995, 0.999]
+        
+        self.c_th_list = [0.30, 0.40, 0.60, 0.70, 0.95]
+        self.g_th_list = [0.30, 0.40, 0.60, 0.70, 0.95]
         
         if "character" in self.handling_grapheme:
             for g in ["character", "initial", "medial", "final"]:
@@ -284,7 +479,8 @@ class RecMetric_GraphemeLabel(object):
                     for metric_type, value in metric.items():
                         metric_report[f"{self.capital(pred_type)}|{self.capital(g)}|{self.capital(metric_type)}|{self.capital(ignore_f)}"] = value
         
-        metric_report["Ideal_Ensemble_Acc"] = self.ideal_ensemble_correct_num/self.total_num
+        if self.total_num > 0:
+            metric_report["Ideal_Ensemble_Acc"] = self.ideal_ensemble_correct_num/self.total_num
         return metric_report
         
     def reset(self):

@@ -25,7 +25,7 @@ def build_head(config, **kwargs):
     from .e2e_pg_head import PGHead
     from .det_ct_head import CT_Head
     # rec head
-    from .rec_ctc_head import CTCHead, CTCHead_Grapheme
+    from .rec_ctc_head import CTCHead, CTCHead_Grapheme, CTCHead_Grapheme_Neck
     from .rec_att_head import AttentionHead
     from .rec_srn_head import SRNHead
     from .rec_nrtr_head import Transformer
@@ -34,7 +34,7 @@ def build_head(config, **kwargs):
     from .rec_pren_head import PRENHead
     from .rec_multi_head import MultiHead, MultiHead_Grapheme
     from .rec_spin_att_head import SPINAttentionHead
-    from .rec_abinet_head import ABINetHead, ABINetHead_GraphemeLabel, ABINetHead_GraphemeLabel_B, ABINetHead_GraphemeLabel_A2
+    from .rec_abinet_head import ABINetHead, ABINetHead_GraphemeLabel, ABINetHead_GraphemeLabel_B, ABINetHead_GraphemeLabel_A2, ABINetHead_GraphemeLabel_A3, ABINetHead_GraphemeLabel_A4
     from .rec_robustscanner_head import RobustScannerHead
     from .rec_visionlan_head import VLHead
     from .rec_rfl_head import RFLHead
@@ -57,7 +57,7 @@ def build_head(config, **kwargs):
         'MultiHead', 'ABINetHead', 'TableMasterHead', 'SPINAttentionHead',
         'VLHead', 'SLAHead', 'RobustScannerHead', 'CT_Head', 'RFLHead',
         'DRRGHead', 'CANHead', 'SATRNHead', 'PFHeadLocal', "MultiHead_Grapheme", "ABINetHead_GraphemeLabel", "ABINetHead_GraphemeLabel_B", "CTCHead_Grapheme",
-        "ABINetHead_GraphemeLabel_A2"
+        "ABINetHead_GraphemeLabel_A2", "CTCHead_Grapheme_Neck", "ABINetHead_GraphemeLabel_A3", "ABINetHead_GraphemeLabel_A4"
     ]
 
     if config['name'] == 'DRRGHead':

@@ -4,6 +4,7 @@ from pathlib import Path
 from .dataset_db import DatasetDB
 from .db import DB
 import project
+import pandas as pd
 
 def split_list(data, ratio, size=None):
     total_num = len(data)
@@ -127,7 +128,31 @@ class LabelsetDB(DB):
                 elif "origin_labelset" in config:     # 없는 경우 origin_labelset에서 가져옴   
                     config[category][work] = sum([self.get_config(origin_labelset, relative_to=relative_to)["label"][work] for origin_labelset in config["origin_labelset"]], [])
         return config
-        
+    
+    def get_label_file_path(self, id, task, relative_to=None, file_name=None):
+        if file_name:
+            return Path(self.PROJECT_ROOT)/self.DIR/id/file_name
+        if task == "train":
+            return Path(self.PROJECT_ROOT)/self.DIR/id/LabelsetDB.TRAIN_LABEL_FILE
+        elif task == "eval":
+            return Path(self.PROJECT_ROOT)/self.DIR/id/LabelsetDB.EVAL_LABEL_FILE
+        elif task == "test":
+            return Path(self.PROJECT_ROOT)/self.DIR/id/LabelsetDB.TEST_LABEL_FILE
+        else:
+            raise ValueError(f"task should be one of ['train', 'eval', 'test']")
+            
+    
+    def get_label(self, id, task, relative_to=None, label_file_path = None):
+        if label_file_path == None:
+            label_file_path = self.get_label_file_path(id, task, relative_to)
+            
+        with open(label_file_path) as f:
+            return [line.strip().split("\t") for line in f.readlines()]
+
+    def get_label_df(self, id, task, relative_to=None, label_file_path=None):
+        return pd.DataFrame(self.get_label(id, task, relative_to, label_file_path=label_file_path), columns=["image", "label"])
+
+    
     def make_k_fold(self, labelsets, name, k, random_seed=100):
         
         for labelset in labelsets:
@@ -189,6 +214,8 @@ class LabelsetDB(DB):
             config["seed"] = random_seed
             with open(new_label_dir/LabelsetDB.CONFIG_NAME, "w") as f:
                 yaml.dump(config, f)
+
+
 
 if __name__=="__main__":
     labeldb = LabelsetDB()

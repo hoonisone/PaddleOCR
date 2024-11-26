@@ -48,9 +48,10 @@ class CELoss_GraphemeLabel(CELoss):
         assert loss_weight is not None, "loss_weight_dict should not be None"
         self.loss_weight = loss_weight
         
-                
-        self.character_decode = ABINetLabelDecode(character_dict_path=character_dict_path["character"], use_space_char=True, **kwargs)
-        self.utf8string_decode = ABINetLabelDecode(character_dict_path=character_dict_path["utf8string"], use_space_char=True, **kwargs)
+        if "character" in self.class_num_dict:
+            self.character_decode = ABINetLabelDecode(character_dict_path=character_dict_path["character"], use_space_char=True, **kwargs)
+        if "utf8string" in self.class_num_dict:
+            self.utf8string_decode = ABINetLabelDecode(character_dict_path=character_dict_path["utf8string"], use_space_char=True, **kwargs)
         
         
 

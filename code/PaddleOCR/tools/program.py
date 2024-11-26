@@ -571,7 +571,7 @@ def preprocess(is_train=False):
         # 'SVTR', 'SVTR_LCNet', 'ViTSTR', 'ABINet', 'DB++', 'TableMaster', 'SPIN',
         # 'VisionLAN', 'Gestalt', 'SLANet', 'RobustScanner', 'CT', 'RFL', 'DRRG',
         # 'CAN', 'Telescope', 'SATRN', 'SVTR_HGNet', 
-        "ABINet_Grapheme", "SVTR_GraphemeLabel"
+        "ABINet_Grapheme", "SVTR_GraphemeLabel", "SVTR_LCNet"
     ]
 
     if use_xpu:

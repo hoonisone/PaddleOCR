@@ -75,8 +75,12 @@ class BCNLanguage(nn.Layer):
             qeury = decoder_layer(qeury, embed, cross_mask=padding_mask)
         output = qeury  # (B, N, C)
 
+        # print("BCN", output.shape)
         logits = self.cls(output)  # (B, N, C)
-
+        # print(self.cls)
+        # print(logits.shape)
+        # print(output.shape)
+        # exit()
         return output, logits
 
 
@@ -490,7 +494,7 @@ class ABINetHead_GraphemeLabel(ABINetHead):
                  num_layers=3,
                  dim_feedforward=2048,
                  dropout=0.1,
-                 max_length=25,
+                 max_length=25, 
                  use_lang=False,
                  iter_size=1, **kwargs):
 
@@ -687,6 +691,9 @@ class ABINetHead_GraphemeLabel_B(ABINetHead_GraphemeLabel):
         return report
 import paddle.nn.initializer as init
 
+
+
+
 class ABINetHead_GraphemeLabel_A2(nn.Layer): # character와 grapheme에 대한 head 파트를 A 방식으로 완전히 독립적으로 수행
     def __init__(self,
                 in_channels,
@@ -741,6 +748,266 @@ class ABINetHead_GraphemeLabel_A2(nn.Layer): # character와 grapheme에 대한 h
         return result 
             
         
+class ABINetHead_GraphemeLabel_A3(nn.Layer): # 현재  Character + Utf  조합만 사용가능
+    def __init__(self,
+                 in_channels,
+                 out_channels,
+                 d_model=512,  
+                 nhead=8,
+                 num_layers=3,
+                 dim_feedforward=2048,
+                 dropout=0.1,
+                 max_length=25,
+                 use_lang=False,
+                 iter_size=1, **kwargs):
+        super().__init__()
+        self.max_length = max_length + 1
+        self.pos_encoder = PositionalEncoding(
+            dropout=0.1, dim=d_model, max_len=8 * 32)
+
+
+        self.encoder = nn.LayerList([
+            TransformerBlock(
+                d_model=d_model,
+                nhead=nhead,
+                dim_feedforward=dim_feedforward,
+                attention_dropout_rate=dropout,
+                residual_dropout_rate=dropout,
+                with_self_attn=True,
+                with_cross_attn=False) for i in range(num_layers)
+        ])
+        self.decoder = PositionAttention(
+            max_length=max_length + 1,  # additional stop token
+            mode='nearest', )
+        
+        
+        self.out_channels = out_channels
+        
+        self.cls = nn.Linear(d_model, self.out_channels["character"])
+        self.utf_cls = nn.Linear(d_model, self.out_channels["utf8string"])
+        
+        self.utf_lang_cls = nn.Linear(d_model, self.out_channels["utf8string"]) # BCNLanguage가 character에 대해서는 자체적으로 해줌, utf만 BNC이 출력한 feature에 한번 젹용하면 됌
+        # self.cls = nn.Linear(d_model, self.out_channels)
+        
+        
+        self.use_lang = use_lang
+        if use_lang:
+            self.iter_size = iter_size
+            self.language = BCNLanguage(
+                d_model=d_model,
+                nhead=nhead,
+                num_layers=4,
+                dim_feedforward=dim_feedforward,
+                dropout=dropout,
+                max_length=max_length,
+                num_classes=self.out_channels["character"])
+            # alignment
+            self.w_att_align = nn.Linear(2 * d_model, d_model)
+            self.cls_align = nn.Linear(d_model, self.out_channels["character"])
+            self.utf_cls_align = nn.Linear(d_model, self.out_channels["utf8string"])
+
+            
+            # self.cls_align = nn.Linear(d_model, self.out_channels)
+
+    def forward(self, x, targets=None):
+        x = x.transpose([0, 2, 3, 1])
+        _, H, W, C = x.shape
+        feature = x.flatten(1, 2)
+        feature = self.pos_encoder(feature) # 미리 계산된 PE 상수 값에 대해 feature 범위 만큼만 추출하여 더함, 그 뒤에 dropout
+        # Positional Encoding에서는 [sequence length, batch size, feature dim]으로 입력을 받는다.
+        # 근데 지금은 [batch size, sequence length, feature dim]으로 입력을 받는다.
+        
+
+        for encoder_layer in self.encoder:
+            feature = encoder_layer(feature)# multi-head attention
+            # input: [B, S, D] batch size, sequence length, feature dim
+            # output: [B, S, D] batch size, sequence length, feature dim
+        feature = feature.reshape([0, H, W, C]).transpose([0, 3, 1, 2])
+        v_feature, attn_scores = self.decoder(
+            feature)  # (B, N, C), (B, C, H, W)
+        
+        
+        # vis_logits = self.cls(v_feature)  # (B, N, C)
+        vis_logits = self.cls(v_feature)  # (B, N, C)
+        utf_vis_logits = self.utf_cls(v_feature)  # (B, N, C)####### 추가 코드
+        
+        report = {'vision': {"character": vis_logits, "utf8string": utf_vis_logits}}
+        
+        
+        # logits은 token이 각 class에 속할 확률을 나타낸다.
+        # (B, N, C) -> 샘플별, 토큰 별 class에 속할 확률 (확률 보단 적합도에 가깝다. 0~1은 아니고 0~무한대의 값)
+        logits = vis_logits
+        vis_lengths = _get_length(vis_logits) # 
+        if self.use_lang:
+            align_logits = vis_logits
+            align_lengths = vis_lengths
+            all_l_res, all_a_res = [], []
+            for i in range(self.iter_size):
+                tokens = F.softmax(align_logits, axis=-1)
+                lengths = align_lengths
+                lengths = paddle.clip(
+                    lengths, 2, self.max_length)  # TODO:move to langauge model
+                l_feature, l_logits = self.language(tokens, lengths)
+               
+                # print(feature.shape)
+                # print(l_logits.shape)
+                # print(self.utf_lang_cls)
+                # print(self.d_model)
+                # exit()
+                
+                utf_l_logits = self.utf_lang_cls(l_feature)
+                
+                report[f"lang{i+1}"] = {"character": l_logits, "utf8string": utf_l_logits}
+                
+                 
+                # alignment
+                # all_l_res.append(l_logits)
+                fuse = paddle.concat((l_feature, v_feature), -1)
+                f_att = F.sigmoid(self.w_att_align(fuse))
+                output = f_att * v_feature + (1 - f_att) * l_feature
+                align_logits = self.cls_align(output)  # (B, N, C)
+                utf_align_logits = self.utf_cls_align(output)  # (B, N, C) ####### 추가 코드
+                
+
+                report[f"align{i+1}"] = {"character": align_logits, "utf8string": utf_align_logits}
+                align_lengths = _get_length(align_logits)
+                
+                
+                
+                all_a_res.append(align_logits)
+        return report
+        
+
+class ABINetHead_GraphemeLabel_A4(nn.Layer): # 현재  Character + Utf  조합만 사용가능 (A3에서 Character와 Utf의 기능만 교체함 utf가 lang의 주체가 됌)
+    def __init__(self,
+                 in_channels,
+                 out_channels,
+                 d_model=512,  
+                 nhead=8,
+                 num_layers=3,
+                 dim_feedforward=2048,
+                 dropout=0.1,
+                 max_length=25,
+                 use_lang=False,
+                 iter_size=1, **kwargs):
+        super().__init__()
+        self.max_length = max_length + 1
+        self.pos_encoder = PositionalEncoding(
+            dropout=0.1, dim=d_model, max_len=8 * 32)
+
+
+        self.encoder = nn.LayerList([
+            TransformerBlock(
+                d_model=d_model,
+                nhead=nhead,
+                dim_feedforward=dim_feedforward,
+                attention_dropout_rate=dropout,
+                residual_dropout_rate=dropout,
+                with_self_attn=True,
+                with_cross_attn=False) for i in range(num_layers)
+        ])
+        self.decoder = PositionAttention(
+            max_length=max_length + 1,  # additional stop token
+            mode='nearest', )
+        
+        
+        self.out_channels = out_channels
+        
+        self.cls = nn.Linear(d_model, self.out_channels["utf8string"])
+        self.c_cls = nn.Linear(d_model, self.out_channels["character"])
+        
+        # self.utf_lang_cls = nn.Linear(d_model, self.out_channels["utf8string"]) # BCNLanguage가 character에 대해서는 자체적으로 해줌, utf만 BNC이 출력한 feature에 한번 젹용하면 됌
+        self.c_lang_cls = nn.Linear(d_model, self.out_channels["character"]) # BCNLanguage가 character에 대해서는 자체적으로 해줌, utf만 BNC이 출력한 feature에 한번 젹용하면 됌
+        # self.cls = nn.Linear(d_model, self.out_channels)
+        
+        
+        self.use_lang = use_lang
+        if use_lang:
+            self.iter_size = iter_size
+            self.language = BCNLanguage(
+                d_model=d_model,
+                nhead=nhead,
+                num_layers=4,
+                dim_feedforward=dim_feedforward,
+                dropout=dropout,
+                max_length=max_length,
+                num_classes=self.out_channels["utf8string"])
+            # alignment
+            self.w_att_align = nn.Linear(2 * d_model, d_model)
+            self.cls_align = nn.Linear(d_model, self.out_channels["utf8string"])
+            self.c_cls_align = nn.Linear(d_model, self.out_channels["character"])
+
+            
+            # self.cls_align = nn.Linear(d_model, self.out_channels)
+
+    def forward(self, x, targets=None):
+        x = x.transpose([0, 2, 3, 1])
+        _, H, W, C = x.shape
+        feature = x.flatten(1, 2)
+        feature = self.pos_encoder(feature) # 미리 계산된 PE 상수 값에 대해 feature 범위 만큼만 추출하여 더함, 그 뒤에 dropout
+        # Positional Encoding에서는 [sequence length, batch size, feature dim]으로 입력을 받는다.
+        # 근데 지금은 [batch size, sequence length, feature dim]으로 입력을 받는다.
+        
+
+        for encoder_layer in self.encoder:
+            feature = encoder_layer(feature)# multi-head attention
+            # input: [B, S, D] batch size, sequence length, feature dim
+            # output: [B, S, D] batch size, sequence length, feature dim
+        feature = feature.reshape([0, H, W, C]).transpose([0, 3, 1, 2])
+        v_feature, attn_scores = self.decoder(
+            feature)  # (B, N, C), (B, C, H, W)
+        
+        
+        # vis_logits = self.cls(v_feature)  # (B, N, C)
+        vis_logits = self.cls(v_feature)  # (B, N, C)
+        c_vis_logits = self.c_cls(v_feature)  # (B, N, C)####### 추가 코드
+        
+        report = {'vision': {"character": c_vis_logits, "utf8string": vis_logits}}
+        
+        
+        # logits은 token이 각 class에 속할 확률을 나타낸다.
+        # (B, N, C) -> 샘플별, 토큰 별 class에 속할 확률 (확률 보단 적합도에 가깝다. 0~1은 아니고 0~무한대의 값)
+        logits = vis_logits
+        vis_lengths = _get_length(vis_logits) # 
+        if self.use_lang:
+            align_logits = vis_logits
+            align_lengths = vis_lengths
+            all_l_res, all_a_res = [], []
+            for i in range(self.iter_size):
+                tokens = F.softmax(align_logits, axis=-1)
+                lengths = align_lengths
+                lengths = paddle.clip(
+                    lengths, 2, self.max_length)  # TODO:move to langauge model
+                l_feature, l_logits = self.language(tokens, lengths)
+               
+                # print(feature.shape)
+                # print(l_logits.shape)
+                # print(self.utf_lang_cls)
+                # print(self.d_model)
+                # exit()
+                
+                c_l_logits = self.c_lang_cls(l_feature)
+                
+                report[f"lang{i+1}"] = {"character": c_l_logits, "utf8string": l_logits}
+                
+                 
+                # alignment
+                # all_l_res.append(l_logits)
+                fuse = paddle.concat((l_feature, v_feature), -1)
+                f_att = F.sigmoid(self.w_att_align(fuse))
+                output = f_att * v_feature + (1 - f_att) * l_feature
+                align_logits = self.cls_align(output)  # (B, N, C)
+                c_align_logits = self.c_cls_align(output)  # (B, N, C) ####### 추가 코드
+                
+
+                report[f"align{i+1}"] = {"character": c_align_logits, "utf8string": align_logits}
+                align_lengths = _get_length(align_logits)
+                
+                
+                
+                all_a_res.append(align_logits)
+        return report
+    
         
 def _get_length(logit):
     """ 

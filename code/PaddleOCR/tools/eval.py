@@ -38,13 +38,18 @@ import numpy as np
 
 
 def main():
+    config["Global"]["is_training"] = False
+    
     ###################################################### MH Modification Start
-    workdb = WorkDB()
+    workdb = WorkDB2()
     id = config["Global"]["work_id"]
+    work_record = workdb.get_record(id)
+    
     version = config["Global"]["version"]
+    labelset = config["Global"]["labelset"]
     task = config["Global"]["eval_task"]
     
-    item = workdb.get_report_value(id, version=version, task=task)
+    item = work_record.get_eval_result(version=version, labelset=labelset, task=task)
     check_exist = config["Eval"]["check_exist"]
     
     if check_exist and (not(isinstance(item, type(None)) or item.empty)):
@@ -186,10 +191,11 @@ def main():
     if config["Eval"]["save"]:
         report = metric
         report["work_id"] = id
+        report["labelset"] = labelset
         report["version"] = version
         report["task"] = task
         
-        workdb.report_eval(id, report)
+        work_record.report_eval_result(report)
         print("Report the eval result successfully")
 
     

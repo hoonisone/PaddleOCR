@@ -24,7 +24,9 @@ import sys
 import json
 from pathlib import Path
 import numpy as np
-
+import paddle
+import time
+from paddle.static import InputSpec
 
 __dir__ = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(__dir__)
@@ -43,7 +45,8 @@ import tools.program as program
 
 
 from ppocr.utils.korean_grapheme_label import compose_korean_char, _compose_korean_char
-def main():
+def main():    
+    
     global_config = config['Global']
     config["Global"]["is_training"] = False
 
@@ -143,6 +146,7 @@ def main():
     model.eval()
 
 
+    start_time = time.time()
 
 
     with open(save_res_path, "w") as fout:
@@ -153,7 +157,10 @@ def main():
             with open(infor_file, "r") as f:
                 paths = [str(dataset_dir/line.strip("\n")) for line in f.readlines()]                
             infer_paths += paths
-        for file in infer_paths:
+        
+        for i, file in enumerate(infer_paths):
+            if i > 1000:
+                break
         # for file in get_image_file_list(config['Global']['infer_img']):
         ####################################################
             logger.info("infer_img: {}".format(file))
@@ -190,6 +197,11 @@ def main():
                 label = paddle.ones((1, 36), dtype='int64')
             images = np.expand_dims(batch["image"], axis=0)
             images = paddle.to_tensor(images)
+            
+            
+            
+            
+            
             if config['Architecture']['algorithm'] == "SRN":
                 preds = model(images, others)
             elif config['Architecture']['algorithm'] == "SAR":
@@ -200,18 +212,24 @@ def main():
                 preds = model([images, image_mask, label])
             else:
                 preds = model(images)
+
+                
             if "grapheme" in config["Global"]:
             
                 preds_args = {name: preds.get(name, None) for name in config["Global"]["grapheme"]}
                 # labels_args = {f"{name}_label": batch[f"{name}_label"]["label_ctc"] for name in config["Global"]["grapheme"]}
                 
 
-                
+                start_time = time.time()
                 post_result = post_process_class(preds_args, label = None)
 
             else:
                 label = batch["label"] if "label" in batch else None
                 post_result = post_process_class(preds, label)
+                end_time = time.time()
+                
+                # flops = paddle.flops(model, [InputSpec([1, 3, 32, 320], "float32", "x")])
+                
 
 
             info = None
@@ -232,7 +250,12 @@ def main():
                 fout.write(file + "\t" + str(info) + "\n")
     logger.info("success!")
 
-
+    end_time = time.time()
+    
+    print(1000/(end_time-start_time))
+    
+    
+    
 if __name__ == '__main__':
     config, device, logger, vdl_writer = program.preprocess()
         
