@@ -215,7 +215,7 @@ class CTCLabelEncode_GraphemeLabel(BaseRecLabelEncode):
         self.handling_grapheme = handling_grapheme
     
             
-        self.encoder_dict = {grapheme: CTCLabelEncode(max_text_length,
+        self.encoder_dict = {grapheme: CTCLabelEncode(max_text_length*3 if grapheme == 'utf8string' else max_text_length,
                 character_dict_path=character_dict_path[grapheme],
                 use_space_char=use_space_char,
                 use_unknown = use_unknown

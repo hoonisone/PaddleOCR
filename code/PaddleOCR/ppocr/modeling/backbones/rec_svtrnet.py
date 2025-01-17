@@ -409,8 +409,8 @@ class SVTRNet(nn.Layer):
             norm_layer='nn.LayerNorm',
             sub_norm='nn.LayerNorm',
             epsilon=1e-6,
-            out_channels=192,
-            out_char_num=25,
+            out_channels=192, # 한 토큰에 대한 채널 수
+            out_char_num=25,   # 토큰 수 (시퀀스 길이)
             block_unit='Block',
             act='nn.GELU',
             last_stage=True,
@@ -533,7 +533,8 @@ class SVTRNet(nn.Layer):
             self.hardswish_len = nn.Hardswish()
             self.dropout_len = nn.Dropout(
                 p=last_drop, mode="downscale_in_infer")
-
+        
+        
         trunc_normal_(self.pos_embed)
         self.apply(self._init_weights)
 

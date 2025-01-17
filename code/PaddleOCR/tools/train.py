@@ -282,11 +282,11 @@ def main(config, device, logger, vdl_writer):
     
     # print(train_dataloader.dataset[0]["image"].shape)
     # exit()
-    paddle.summary(model, input_size=(1, 3, 32, 320), dtypes=['float32'])
-    total_params = sum(p.numel() for p in model.parameters())
-    print(f'Total parameters: {total_params}')
+    # paddle.summary(model, input_size=(1, 3, 32, 320), dtypes=['float32'])
+    # total_params = sum(p.numel() for p in model.parameters())
+    # print(f'Total parameters: {total_params}')
 
-    exit()
+    # exit()
     program.train(config, train_dataloader, valid_dataloader, device, model,
                   loss_class, optimizer, lr_scheduler, post_process_class,
                   eval_class, pre_best_model_dict, logger, vdl_writer, scaler,

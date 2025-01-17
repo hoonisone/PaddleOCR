@@ -3,6 +3,8 @@ import project
 from .db import DB
 import pandas as pd
 import yaml
+
+
 class DatasetDB(DB):
     # 데이터 셋을 관리하는 DB
     DIR = "./datasets"
@@ -80,9 +82,10 @@ class DatasetDB(DB):
     def load_text_file(path):
         with open(path) as f: return [line.rstrip('\n') for line in f.readlines()]
 
-if __name__ == "__main__":
-    mdb = DatasetDB()
-    print(mdb.get_all_id())
-    id = mdb.get_all_id()[0]
-    print(id)
-    print(mdb.get_config(id))
+# if __name__ == "__main__":
+#     mdb = DatasetDB()
+#     print(mdb.get_all_id())
+#     id = mdb.get_all_id()[0]
+#     print(id)
+#     print(mdb.get_config(id))
+

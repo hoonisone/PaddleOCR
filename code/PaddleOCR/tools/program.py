@@ -141,7 +141,6 @@ def train(config,
 
         for idx, batch in enumerate(train_dataloader):
 
-            
             profiler.add_profiler_step(profiler_options)
             train_reader_cost += time.time() - reader_start
             if idx >= max_iter:
@@ -211,7 +210,6 @@ def train(config,
 
             
             if cal_metric_during_train and epoch % calc_epoch_interval == 0:  # only rec and cls need (True)
-
                 # for k, v in batch.items():
                 #     if isinstance(v, list):
                 #         continue
@@ -226,7 +224,7 @@ def train(config,
                     
                     post_result = post_process_class(preds_args, labels_args)  # for CTC head out
                 else:
-                    post_result = post_process_class(preds, batch["label"])
+                    post_result = post_process_class(preds, batch)
                 # print(post_result)
                 # exit()
                 """
@@ -463,7 +461,7 @@ def eval(model,
                 labels_args = {f"{name}_label": batch[f"{name}_label"]["label_ctc"] for name in  config["Global"]["grapheme"]}
                 post_result = post_process_class(preds, labels_args)                
             else:
-                post_result = post_process_class(preds, batch["label"])
+                post_result = post_process_class(preds, batch)
             
             # print(post_result["vision"]["initial"])
             # print(post_result["vision"]["medial"])

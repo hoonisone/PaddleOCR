@@ -1,6 +1,6 @@
 from functools import reduce
 from operator import mul
-
+import math
 
 HANGUL_BASE = 0xAC00
 CHO_BASE = 0x1100
@@ -142,42 +142,62 @@ def char_level_ensemble_by_threshold(pred1, pred2, threshold=0.5, on = "left"):
                 raise ValueError("on should be either 'left' or 'right'")
         return "".join(c), p
     except Exception as e:
-        # print("char_level_ensemble error", e, pred1, pred2)
+        print("char_level_ensemble error", e, pred1, pred2)
         return pred1
 
 def word_level_ensemble(pred1, pred2):
     try:
-        p1 = reduce(mul, pred1[0])
-        p2 = reduce(mul, pred2[1])
-        if p1 >= p2:
-            return pred1
-        else:
-            return pred2
+        p1 = mul_prob(pred1[1])
+        p2 = mul_prob(pred2[1])
+        return select(pred1, pred2, p1 >= p2)
     except Exception as e:
-        # print("work_level_ensemble error", e, pred1, pred2)
+        print("work_level_ensemble error", e, pred1, pred2)
         return pred1
 
 
-def word_level_ensemble_by_threshold(pred1, pred2, threshold=0.5, on = "left"):
-    try:
-        p1 = reduce(mul, pred1[0])
-        p2 = reduce(mul, pred2[1])
-        # if p1 >= p2:
+
+def threshold_based_word_level_ensemble_with_mul_prob(pred1, pred2, threshold=0.5, on = "left"):
+        p1 = mul_prob(pred1[1])
+        p2 = mul_prob(pred2[1])
+        return __word_level_ensemble_by_threshold(pred1, pred2, p1, p2, threshold, on)
         
+def threshold_based_word_level_ensemble_with_log_avg_prob(pred1, pred2, threshold=0.5, on = "left"):
+        p1 = log_avg_prob(pred1[1])
+        p2 = log_avg_prob(pred2[1])
+
+        return __word_level_ensemble_by_threshold(pred1, pred2, p1, p2, threshold, on)
+    
+def __word_level_ensemble_by_threshold(pred1, pred2, prob1, prob2, threshold=0.5, on = "left"):
+    try:        
         if on == "left" :
-            if p1 >= threshold:
-                return pred1
-            else:
-                return pred2
-        
+            return select(pred1, pred2, prob1 >= threshold)        
         elif on == "right":
-            if p2 >= threshold:
-                return pred2
-            else:
-                return pred1
+            return select(pred2, pred1, prob2 >= threshold)
         else:
             raise ValueError("on should be either 'left' or 'right'")
 
     except Exception as e:
-        # print("work_level_ensemble error", e, pred1, pred2)
+        print("work_level_ensemble error", e, pred1, pred2)
         return pred1
+
+
+def log_avg_prob(prob_list):
+    try:
+        if len(prob_list) == 0:
+            return 0
+        return sum([math.log(max(p, 0.000001)) for p in prob_list]) / len(prob_list)
+    except Exception as e:
+        print("log_avg_prob error", e, prob_list)
+        return 0
+
+def mul_prob(prob_list):
+    if len(prob_list) == 0:
+        return 0
+    return reduce(mul, prob_list)
+
+def select(a, b, condition):
+    # condition is true => select a else select b
+    if condition:
+        return a
+    else:
+        return b

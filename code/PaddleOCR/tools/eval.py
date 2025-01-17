@@ -47,9 +47,8 @@ def main():
     
     version = config["Global"]["version"]
     labelset = config["Global"]["labelset"]
-    task = config["Global"]["eval_task"]
     
-    item = work_record.get_eval_result(version=version, labelset=labelset, task=task)
+    item = work_record.get_eval_result(version=version, labelset=labelset)
     check_exist = config["Eval"]["check_exist"]
     
     if check_exist and (not(isinstance(item, type(None)) or item.empty)):
@@ -192,10 +191,9 @@ def main():
         report = metric
         report["work_id"] = id
         report["labelset"] = labelset
-        report["version"] = version
-        report["task"] = task
+        report["version"] = int(version)
         
-        work_record.report_eval_result(report)
+        work_record.report_result(report)
         print("Report the eval result successfully")
 
     

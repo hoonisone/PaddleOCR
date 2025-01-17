@@ -49,8 +49,8 @@ Architecture:
   Backbone:
     name: SVTRNet
     img_size: [32, 100]
-    out_char_num: 25 # W//4 or W//8 or W/12
-    out_channels: 192
+    out_char_num: 25 # W//4 or W//8 or W/12 # 토큰 개수 = 시퀀스 길이
+    out_channels: 192 # 토큰에 대한 채널 수
     patch_merging: 'Conv'
     embed_dim: [64, 128, 256]
     depth: [3, 6, 3]
@@ -62,9 +62,10 @@ Architecture:
   Neck:
     name: SequenceEncoder
     encoder_type: reshape
+    # 큰 연산은 없고 형태만 바꿔주는 역할임 (reshape 설정이 그런 옵션임)
   Head:
     name: CTCHead
-
+  # Head는 각 토큰에 대하여 channel 수를 글자 클래스 개수로 바꿔준다.
 Loss:
   name: CTCLoss
 

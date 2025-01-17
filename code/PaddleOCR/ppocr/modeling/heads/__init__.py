@@ -25,7 +25,7 @@ def build_head(config, **kwargs):
     from .e2e_pg_head import PGHead
     from .det_ct_head import CT_Head
     # rec head
-    from .rec_ctc_head import CTCHead, CTCHead_Grapheme, CTCHead_Grapheme_Neck
+    from .rec_ctc_head import CTCHead, CTCHead_Grapheme, CTCHead_Grapheme_Neck, CTCHead_Grapheme_B1, CTCHead_Grapheme_B2
     from .rec_att_head import AttentionHead
     from .rec_srn_head import SRNHead
     from .rec_nrtr_head import Transformer
@@ -57,7 +57,7 @@ def build_head(config, **kwargs):
         'MultiHead', 'ABINetHead', 'TableMasterHead', 'SPINAttentionHead',
         'VLHead', 'SLAHead', 'RobustScannerHead', 'CT_Head', 'RFLHead',
         'DRRGHead', 'CANHead', 'SATRNHead', 'PFHeadLocal', "MultiHead_Grapheme", "ABINetHead_GraphemeLabel", "ABINetHead_GraphemeLabel_B", "CTCHead_Grapheme",
-        "ABINetHead_GraphemeLabel_A2", "CTCHead_Grapheme_Neck", "ABINetHead_GraphemeLabel_A3", "ABINetHead_GraphemeLabel_A4"
+        "ABINetHead_GraphemeLabel_A2", "CTCHead_Grapheme_Neck", "ABINetHead_GraphemeLabel_A3", "ABINetHead_GraphemeLabel_A4", "CTCHead_Grapheme_B1", "CTCHead_Grapheme_B2"
     ]
 
     if config['name'] == 'DRRGHead':

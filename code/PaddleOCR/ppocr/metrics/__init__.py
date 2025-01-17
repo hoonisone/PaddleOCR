@@ -22,7 +22,7 @@ import copy
 __all__ = ["build_metric"]
 
 from .det_metric import DetMetric, DetFCEMetric
-from .rec_metric import RecMetric, CNTMetric, CANMetric, RecMetric_GraphemeLabel, RecMetric_GraphemeLabel_All
+from .rec_metric import RecMetric, CNTMetric, CANMetric, RecMetric_GraphemeLabel_All
 from .cls_metric import ClsMetric
 from .e2e_metric import E2EMetric
 from .distillation_metric import DistillationMetric
