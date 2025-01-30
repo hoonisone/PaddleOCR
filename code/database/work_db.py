@@ -1014,7 +1014,7 @@ class Work2(Record2):
         return self.get_cache_data("info")
         
     def validate_task_value(self, task, make_error = True):
-        TASK = ["train", "eval", "test"]
+        TASK = ["train", "eval", "test", "infer"]
         self.validate_value_by_valid_value_list(task, TASK, make_error = make_error)    
 
     def validate_save_to_value(self, task, make_error = True):
@@ -1046,7 +1046,7 @@ class Work2(Record2):
         elif task == "eval":
             command = "code/PaddleOCR/tools/eval.py"
         elif task == "infer":
-            command = self.get_config()["task"]
+            task = self.config["task"]
             if "STD" in task:
                 command = "code/PaddleOCR/tools/infer_det.py"
             elif "STR" in task:
@@ -1325,19 +1325,19 @@ class Work2(Record2):
             self.make_and_write_command_context("eval", code, train_config, options, verbose)
 
     def get_infer_result_path(self, version, labelset):
-        config = self.get_config()
-        save_path = Path(config["inference_result_dir"])/str(int(version))/labelset
+        config = self.config
+        save_path = Path(config["inference_result_dir"])/f"epoch_{version}"/f"labelset_{labelset}/infer_result.txt"
         save_path = str(save_path).replace("\\", "/")
         return save_path
     
 
-    def infer(self, version, labelset=None, command_to="global",
+    def infer(self, version, labelsets=None, command_to="global",
               check_result=True, check_weight=True, verbose=False):
         # argument validation step
         self.validate_version_value(version)
         
         code = self.get_command_code("infer")
-        train_config = config["train_config"]
+        train_config = self.config["train_config"]
         
                 
         model_weight_path = self.get_model_weight_path(version, validate=True)
@@ -1350,8 +1350,9 @@ class Work2(Record2):
         
         for labelset in labelsets:
             # labelset handling step
-            labelset_config = LabelsetDB().ger_record(labelset).config
+            labelset_config = LabelsetDB2().get_record(labelset).config
             
+            save_path = self.get_infer_result_path(version, labelset)
             if check_result and Path(save_path).exists():
                 print(f"(name:{self.name}, version:{version}, labelset:{labelset}) already infered")
                 return
@@ -1360,10 +1361,10 @@ class Work2(Record2):
                 "Global.pretrained_model":model_weight_path,
                 "Global.checkpoints":model_weight_path,
                 # "Global.save_model_dir":model_weight, 
-                "Global.save_res_path":self.get_infer_result_path(version, labelset), 
+                "Global.save_res_path":save_path, 
                 
                 "Infer.data_dir":labelset_config["dataset_dir"],
-                "Infer.infer_file_list":labelset_config["label"],
+                "Infer.infer_file_list":[labelset_config["infer"]],
             }
             self.make_and_write_command_context("infer", code, train_config, options, verbose)
         
@@ -1388,7 +1389,7 @@ class Work2(Record2):
             config = self.config
             metric = config["metric"]
         
-        df = df if df is not None else self.get_eval_result_df()
+        df = df if df is not None else self.eval_result_df
 
         if len(df) == 0:
             return None

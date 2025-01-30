@@ -180,7 +180,7 @@ class CTCLabelEncode(BaseRecLabelEncode):
                  use_unknown = False,
                  **kwargs):
         super(CTCLabelEncode, self).__init__(
-            max_text_length, character_dict_path, use_space_char)
+            max_text_length, character_dict_path, use_space_char, use_unknown)
 
     def __call__(self, data):
 
@@ -200,6 +200,8 @@ class CTCLabelEncode(BaseRecLabelEncode):
 
     def add_special_char(self, dict_character):
         dict_character = ['blank'] + dict_character
+        if self.use_unkown:
+            dict_character = [self.unkown_str] + dict_character
         return dict_character
     
 class CTCLabelEncode_GraphemeLabel(BaseRecLabelEncode):

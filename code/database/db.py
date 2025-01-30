@@ -278,12 +278,12 @@ class DB2(DBElement):
     
 
 
-    def get_next_id(self):
-        config = self.config
-        next_id = config["last_id"]+1
-        config["last_id"] = next_id
-        self.config = config
-        return next_id
+    # def get_next_id(self):
+    #     config = self.config
+    #     next_id = config["last_id"]+1
+    #     config["last_id"] = next_id
+    #     self.config = config
+    #     return next_id
     
     def copy_record(self, id):
         if isinstance(id, str):

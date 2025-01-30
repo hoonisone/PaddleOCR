@@ -240,7 +240,11 @@ class Decode_GraphemeLabel(object):
         # 3. composed decomposed
         preds = self.compose(preds)
         
-        label = batch["text_label"]["character"]
+        try:
+            label = batch["text_label"]["character"]
+        except Exception as e:
+            label = None
+            
         preds = self.ensemble(preds, label)
         preds = self.decompose(preds)
         
@@ -359,21 +363,22 @@ class Decode_GraphemeLabel(object):
             ensemble = [threshold_based_word_level_ensemble_with_log_avg_prob(c, utf8, threshold=threshold, on="right") for c, utf8 in zip(pred1, pred2)]
             result[f"word_level_{ensemble_name}_on_log_avg_utf_confidence_({threshold})"] = {"character":ensemble }
         
-        # exit()
-        ideal_ensemble = []    
-        
-        for (c, cp), (g, gp), (label) in zip(pred1, pred2, label):
-            c = c.replace(" ", "")
-            g = g.replace(" ", "")
-            label = label.replace(" ", "")
+        if label is not None:
+            # exit()
+            ideal_ensemble = []    
             
-            if g == label:
-                ideal_ensemble.append((g, gp))
-            else:
-                ideal_ensemble.append((c, cp))
+            for (c, cp), (g, gp), (label) in zip(pred1, pred2, label):
+                c = c.replace(" ", "")
+                g = g.replace(" ", "")
+                label = label.replace(" ", "")
+                
+                if g == label:
+                    ideal_ensemble.append((g, gp))
+                else:
+                    ideal_ensemble.append((c, cp))
 
-        result[f"ideal_{ensemble_name}"] = {"character": ideal_ensemble}
-    
+            result[f"ideal_{ensemble_name}"] = {"character": ideal_ensemble}
+        
     
         return result
     
@@ -1172,7 +1177,7 @@ class ABINetLabelDecode_GraphemeLabel_All(object):
         self.handling_grapheme = handling_grapheme
         self.decode_dict = {
             grphame:CTCLabelDecode(character_dict_path = character_dict_path[grphame], use_space_char = use_space_char, **kwargs)
-            for grphame in self.grapheme
+            for grphame in self.handling_grapheme
         }
         
         self.char_num = {name: decode.char_num for name, decode in self.decode_dict.items()}        
@@ -1263,6 +1268,9 @@ class ABINetLabelDecode_GraphemeLabel_All(object):
                 continue
             # logit_dict = self.split_grapheme_logits(pred)
             logit_dict = pred
+            print(self.decode_dict.keys())
+            print(logit_dict.keys())
+            print(label.keys())
             pred_dict = {key: {"align":[logit_dict[key]]} for key in self.decode_dict.keys()} 
             label_dict = {key: label[key].numpy() if label else None for key in self.decode_dict.keys()}
             

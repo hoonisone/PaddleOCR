@@ -141,6 +141,7 @@ class HDF5PickleStorage:
         self.filename = file_path
         self.read_fp = None
         if not Path(self.filename).exists():
+            Path(self.filename).parent.mkdir(parents=True, exist_ok=True)
             with h5py.File(self.filename, 'w'):
                 pass
 

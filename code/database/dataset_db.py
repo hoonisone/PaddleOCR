@@ -1,6 +1,6 @@
 from pathlib import Path
 import project
-from .db import DB
+from .db import DB, DB2, Record2
 import pandas as pd
 import yaml
 
@@ -89,3 +89,13 @@ class DatasetDB(DB):
 #     print(id)
 #     print(mdb.get_config(id))
 
+
+
+class DatasetDB2(DB2):
+
+    def __init__(self, name = "datasets"):
+        super().__init__(name = name, record_class = Dataset2, record_config_name = "dataset_config.yml")
+        
+        
+class Dataset2(Record2):
+    pass
