@@ -1,1 +1,0 @@
-python run.py --lang=korean
