@@ -95,7 +95,22 @@ class DatasetDB2(DB2):
 
     def __init__(self, name = "datasets"):
         super().__init__(name = name, record_class = Dataset2, record_config_name = "dataset_config.yml")
+    
+    def make(self, name):        
+        id = self.get_next_id()
         
+        (Path(project.PROJECT_ROOT)/self.dir/id).mkdir(parents=True, exist_ok=True)
+        
+        config = {
+            "virtual":{
+                "flag": False,
+                "origin_dataset": ""                 
+            },
+            "task":[],
+            "labelfiles":[],
+            "options": []
+        }
+        self.update_config(id, config)
         
 class Dataset2(Record2):
     pass

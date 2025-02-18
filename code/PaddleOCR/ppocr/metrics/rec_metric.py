@@ -76,6 +76,7 @@ class RecMetric(object):
         self.label_char = dict()
         self.pred_char = dict()
         self.answer_char = dict()
+        
         self.is_training = kwargs["is_training"]
         
         self.char_set_path_dict = {
@@ -108,7 +109,6 @@ class RecMetric(object):
         correct_num = 0
         all_num = 0
         
-
         for (pred, pred_conf), (target, _) in zip(preds, labels):
             if self.ignore_space:
                 pred = pred.replace(" ", "")

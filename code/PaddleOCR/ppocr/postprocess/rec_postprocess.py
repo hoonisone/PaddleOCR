@@ -162,7 +162,7 @@ class CTCLabelDecode(BaseRecLabelDecode):
         super(CTCLabelDecode, self).__init__(character_dict_path,
                                              use_space_char)
 
-    def __call__(self, preds):
+    def __call__(self, preds, _=None):
         if preds is not None:
             if isinstance(preds, tuple) or isinstance(preds, list):
                 preds = preds[-1]
