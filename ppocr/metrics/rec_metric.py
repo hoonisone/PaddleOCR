@@ -85,7 +85,7 @@ class RecMetric(object):
             # "medium":"/home/labelsets/aihub_rec_full_horizontal_clean_80:10:10/char_set_medium.txt",
             # "many":"/home/labelsets/aihub_rec_full_horizontal_clean_80:10:10/char_set_many.txt",
             
-            "zero":"/home/code/PaddleOCR/ppocr/metrics/remove_30_zero_char_set.txt"
+            # "zero":"/home/code/PaddleOCR/ppocr/metrics/remove_30_zero_char_set.txt"
         }
 
         self.char_set_dict = {
