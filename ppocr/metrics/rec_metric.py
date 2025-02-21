@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from http.cookiejar import CookiePolicy
+
 from rapidfuzz.distance import Levenshtein
 from difflib import SequenceMatcher
 
@@ -24,7 +24,7 @@ from tomlkit import item
 
 # exit()
 # from PaddleOCR.tools import infer_kie_token_ser_re
-from ppocr.utils.korean_grapheme_label import compose_korean_char, decompose_korean_char, grapheme_edit_dis
+from ppocr.utils.korean_compose import GraphemeComposer
 
 def hirschberg_lcs(X, Y):
     def lcs_length(X, Y):
@@ -158,7 +158,7 @@ class RecMetric(object):
                 target = self._normalize_text(target)
         
             norm_edit_dis += Levenshtein.normalized_distance(pred, target)
-            grapheme_norm_edit_dis += grapheme_edit_dis(pred, target)
+            grapheme_norm_edit_dis += GraphemeComposer.grapheme_edit_dis(pred, target)
             if pred == target:
                 correct_num += 1
 

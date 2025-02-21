@@ -19,8 +19,7 @@ import numpy as np
 import paddle
 from paddle.nn import functional as F
 import re
-from ppocr.utils.korean_compose_by_utf8 import compose_string_by_utf8, char_level_ensemble, word_level_ensemble, char_level_ensemble_by_threshold, threshold_based_word_level_ensemble_with_mul_prob, threshold_based_word_level_ensemble_with_log_avg_prob
-from ppocr.utils.korean_grapheme_label import compose_korean_char, decompose_korean_char
+from ppocr.utils.korean_compose import GraphemeComposer, UTF8Composer, Ensembler
 
 def softmax(x, axis=None):
     # Overflow 방지를 위해 입력 값에서 최대값을 뺀 후 지수 계산
@@ -303,7 +302,7 @@ class Decode_GraphemeLabel(object):
                 if method_name == "direct":
                     pass # compose 할 내용이 없음
                 elif method_name == "utf8composed": 
-                    method_pred["character"] = [compose_string_by_utf8(pred, pred_p) for pred, pred_p in method_pred["utf8string"]]
+                    method_pred["character"] = [UTF8Composer.compose_string_by_utf8(pred, pred_p) for pred, pred_p in method_pred["utf8string"]]
                 elif method_name == "composed":
                     if all([grapheme in method_pred for grapheme in ["initial", "medial", "final"]]): # 3가지 grpaheme이 모두 있다면 compose                
                         method_pred["character"] = self.compose_character(method_pred)
@@ -337,30 +336,30 @@ class Decode_GraphemeLabel(object):
             String 은 character 하나만 있음
         """
         result = dict()
-        ensemble = [char_level_ensemble(c, utf8) for c, utf8 in zip(pred1, pred2)]
+        ensemble = [Ensembler.char_level_ensemble(c, utf8) for c, utf8 in zip(pred1, pred2)]
         result[f"char_level_{ensemble_name}"] = {"character":ensemble }
         
-        ensemble = [word_level_ensemble(c, utf8) for c, utf8 in zip(pred1, pred2)]
+        ensemble = [Ensembler.word_level_ensemble(c, utf8) for c, utf8 in zip(pred1, pred2)]
         result[f"word_level_{ensemble_name}"] = {"character":ensemble }
         
         for threshold in self.c_th_list:
-            ensemble = [char_level_ensemble_by_threshold(c, utf8, threshold=threshold, on="left") for c, utf8 in zip(pred1, pred2)]
+            ensemble = [Ensembler.char_level_ensemble_by_threshold(c, utf8, threshold=threshold, on="left") for c, utf8 in zip(pred1, pred2)]
             result[f"char_level_{ensemble_name}_on_char_confidence_({threshold})"] = {"character":ensemble }
             
-            ensemble = [threshold_based_word_level_ensemble_with_mul_prob(c, utf8, threshold=threshold, on="left") for c, utf8 in zip(pred1, pred2)]
+            ensemble = [Ensembler.threshold_based_word_level_ensemble_with_mul_prob(c, utf8, threshold=threshold, on="left") for c, utf8 in zip(pred1, pred2)]
             result[f"word_level_{ensemble_name}_on_mul_char_confidence_({threshold})"] = {"character":ensemble }
             
-            ensemble = [threshold_based_word_level_ensemble_with_log_avg_prob(c, utf8, threshold=threshold, on="left") for c, utf8 in zip(pred1, pred2)]
+            ensemble = [Ensembler.threshold_based_word_level_ensemble_with_log_avg_prob(c, utf8, threshold=threshold, on="left") for c, utf8 in zip(pred1, pred2)]
             result[f"word_level_{ensemble_name}_on_log_avg_char_confidence_({threshold})"] = {"character":ensemble }
 
         for threshold in self.g_th_list:
-            ensemble = [char_level_ensemble_by_threshold(c, utf8, threshold=threshold, on="right" ) for c, utf8 in zip(pred1, pred2)]
+            ensemble = [Ensembler.char_level_ensemble_by_threshold(c, utf8, threshold=threshold, on="right" ) for c, utf8 in zip(pred1, pred2)]
             result[f"char_level_{ensemble_name}_on_utf_confidence_({threshold})"] = {"character":ensemble }
             
-            ensemble = [threshold_based_word_level_ensemble_with_mul_prob(c, utf8, threshold=threshold, on="right") for c, utf8 in zip(pred1, pred2)]
+            ensemble = [Ensembler.threshold_based_word_level_ensemble_with_mul_prob(c, utf8, threshold=threshold, on="right") for c, utf8 in zip(pred1, pred2)]
             result[f"word_level_{ensemble_name}_on_mul_utf_confidence_({threshold})"] = {"character":ensemble }
             
-            ensemble = [threshold_based_word_level_ensemble_with_log_avg_prob(c, utf8, threshold=threshold, on="right") for c, utf8 in zip(pred1, pred2)]
+            ensemble = [Ensembler.threshold_based_word_level_ensemble_with_log_avg_prob(c, utf8, threshold=threshold, on="right") for c, utf8 in zip(pred1, pred2)]
             result[f"word_level_{ensemble_name}_on_log_avg_utf_confidence_({threshold})"] = {"character":ensemble }
         
         if label is not None:
@@ -392,7 +391,7 @@ class Decode_GraphemeLabel(object):
         
         for pred_text in preds:
             pred_text, probability = pred_text
-            decomposed = decompose_korean_char(pred_text)
+            decomposed = GraphemeComposer.decompose_string(pred_text)
             result["initial"].append([decomposed["initial"], probability])
             result["medial"].append([decomposed["medial"], probability])
             result["final"].append([decomposed["final"], probability])
@@ -1167,7 +1166,7 @@ class ABINetLabelDecode(NRTRLabelDecode):
 
 class ABINetLabelDecode_GraphemeLabel_All(object):
     """ Convert between text-label and text-index """
-    from ppocr.utils.korean_grapheme_label import compose_korean_char
+    compose_korean_char = GraphemeComposer.compose_string
     
     def __init__(self, handling_grapheme, character_dict_path=None, use_space_char=False, use_unkown=False,
                  **kwargs):

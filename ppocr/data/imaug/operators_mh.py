@@ -32,25 +32,25 @@ class RotateVertical(object):
             
         return data
 
-jamo_to_choseong = {
-            'ᄀ': '가', 'ᄁ': '까', 'ᄂ': '나', 'ᄃ': '다', 'ᄄ': '따', 'ᄅ': '라',
-            'ᄆ': '마', 'ᄇ': '바', 'ᄈ': '빠', 'ᄉ': '사', 'ᄊ': '싸', 'ᄋ': '아',
-            'ᄌ': '자', 'ᄍ': '짜', 'ᄎ': '차', 'ᄏ': '카', 'ᄐ': '타', 'ᄑ': '파', 'ᄒ': '하'
-        }
+# jamo_to_choseong = {
+#             'ᄀ': '가', 'ᄁ': '까', 'ᄂ': '나', 'ᄃ': '다', 'ᄄ': '따', 'ᄅ': '라',
+#             'ᄆ': '마', 'ᄇ': '바', 'ᄈ': '빠', 'ᄉ': '사', 'ᄊ': '싸', 'ᄋ': '아',
+#             'ᄌ': '자', 'ᄍ': '짜', 'ᄎ': '차', 'ᄏ': '카', 'ᄐ': '타', 'ᄑ': '파', 'ᄒ': '하'
+#         }
 
-def extract_first_grapheme(text):
-    result = ''
-    for char in text:
-        # 한글 유니코드 범위인지 확인
-        if 44032 <= ord(char) <= 55203:
-            # 초성 구하기
-            choseong_index = (ord(char) - 44032) // 588
-            # 초성을 문자로 변환하여 결과에 추가
-            choseong = chr(choseong_index + 0x1100)  # 초성 유니코드 시작값은 0x1100입니다.
-            result += jamo_to_choseong[choseong]
-        else: # 한글이 아니면 그대로 결과에 추가
-            result += char
-    return result
+# def extract_first_grapheme(text):
+#     result = ''
+#     for char in text:
+#         # 한글 유니코드 범위인지 확인
+#         if 44032 <= ord(char) <= 55203:
+#             # 초성 구하기
+#             choseong_index = (ord(char) - 44032) // 588
+#             # 초성을 문자로 변환하여 결과에 추가
+#             choseong = chr(choseong_index + 0x1100)  # 초성 유니코드 시작값은 0x1100입니다.
+#             result += jamo_to_choseong[choseong]
+#         else: # 한글이 아니면 그대로 결과에 추가
+#             result += char
+#     return result
 
 
 # # 예시 사용
@@ -58,24 +58,24 @@ def extract_first_grapheme(text):
 # result = convert_to_choseong(text)
 # print(result)
   
-class GetFirstGrapheme(object):
-    def __init__(self, **kwargs):
-        pass
+# class GetFirstGrapheme(object):
+#     def __init__(self, **kwargs):
+#         pass
 
-    def __call__(self, data):       
-        # print(data["label"])
-        data["label"] = convert_to_choseong(data["label"])
-        # print(data["label"])     
-        return data
+#     def __call__(self, data):       
+#         # print(data["label"])
+#         data["label"] = convert_to_choseong(data["label"])
+#         # print(data["label"])     
+#         return data
     
     
 import functools
-from ppocr.utils.korean_grapheme_label import decompose_korean_char
+from ppocr.utils.korean_compose import UTF8Composer, GraphemeComposer
 
 
 @functools.lru_cache()
 def extract_grapheme(text):
-    decomposed = decompose_korean_char(text)
+    decomposed = GraphemeComposer.decompose_string(text)
     decomposed["character"] = text
     # return {
     #     "character":text,
@@ -96,7 +96,7 @@ class ExtractGrapheme(object):
             data["text_label"] = extract_grapheme(data["label"]) # encode 되지 않고 평가 시 사용되는 레이블 (자칭 train_label)
             data["label"] = copy.copy((data["text_label"])) # 추후 encode 되어 loss를 계산할 수 있도록 하는 레이블 (자칭 train_label)
             
-            data["text_label"]["utf8string"] = decompose_hangul_by_utf8(data["text_label"]["character"])
+            data["text_label"]["utf8string"] = UTF8Composer.decompose_hangul_by_utf8(data["text_label"]["character"])
             data["label"]["utf8string"] = copy.copy(data["text_label"]["utf8string"])
             return data
         except Exception as e:
@@ -110,9 +110,8 @@ def test_ExtractGrapheme():
     assert result["text_label"] == {'initial': '아나하사아', 'medial': '아여아에요', 'final': '은응으으으', 'character': '안녕하세요'}
 
 
-from ppocr.utils.korean_compose_by_utf8 import decompose_hangul_by_utf8
-class ExtractGrapheme2(object):
-    pass
+# class ExtractGrapheme2(object):
+#     pass
     # # ExtractGrapheme 에서 utf 8 extract까지 추가한 버전
     # def __init__(self, **kwargs):
     #     self.inner_extractor = ExtractGrapheme()

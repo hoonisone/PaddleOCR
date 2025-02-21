@@ -33,7 +33,7 @@ class CTCLoss(nn.Layer):
         # print(f"predicts.shape: {predicts.shape}")
         # # print(f"batch: {batch}")
         # print(f"type(batch): {type(batch)}")
-        # print(f"len(batch): {len(batch)}")
+        # print(f"len(batch): {len(batch)}") 
         # print(f"batch[0]: {batch[0]}")
         
 
